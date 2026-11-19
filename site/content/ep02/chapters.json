@@ -1,0 +1,85 @@
+{
+ "duration": 685.827,
+ "chapters": [
+  {
+   "t": 0.0,
+   "title": "MapReduce 模型",
+   "title_en": "The MapReduce Model"
+  },
+  {
+   "t": 28.6,
+   "title": "先说结论",
+   "title_en": "The Whole Idea First"
+  },
+  {
+   "t": 98.69,
+   "title": "一句注释",
+   "title_en": "The Comment That Starts It"
+  },
+  {
+   "t": 131.91,
+   "title": "M 和 R 从哪来",
+   "title_en": "Where M and R Come From"
+  },
+  {
+   "t": 175.36,
+   "title": "选桶的规则",
+   "title_en": "A Rule That Picks a Bucket"
+  },
+  {
+   "t": 262.61,
+   "title": "手算 ihash",
+   "title_en": "ihash, by Hand"
+  },
+  {
+   "t": 332.76,
+   "title": "同一个词，同一列",
+   "title_en": "Same Word, Same Column"
+  },
+  {
+   "t": 370.15,
+   "title": "小结（在图上）",
+   "title_en": "So Far, on the Page"
+  },
+  {
+   "t": 392.17,
+   "title": "闸门：Reduce 必须等",
+   "title_en": "The Gate: Reduce Must Wait"
+  },
+  {
+   "t": 426.52,
+   "title": "先排序，再归组",
+   "title_en": "Sort, Then Group"
+  },
+  {
+   "t": 458.44,
+   "title": "Reduce 读一整列",
+   "title_en": "Reduce Reads a Column"
+  },
+  {
+   "t": 502.76,
+   "title": "真实运行：80 个文件",
+   "title_en": "The Real Run: 80 Files"
+  },
+  {
+   "t": 550.52,
+   "title": "测试怎么判对错",
+   "title_en": "How the Test Judges It"
+  },
+  {
+   "t": 595.36,
+   "title": "这一集没讲的",
+   "title_en": "What This Episode Skipped"
+  },
+  {
+   "t": 629.45,
+   "title": "本集要点（在图上）",
+   "title_en": "Recap, on the Page"
+  },
+  {
+   "t": 654.95,
+   "title": "轮到你",
+   "title_en": "Your Turn"
+  }
+ ]
+}

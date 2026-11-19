@@ -1,0 +1,2026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>分布式系统难在哪：一台机器数完八本书 · Episode 01</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=IBM+Plex+Sans:wght@500;600&family=JetBrains+Mono:wght@500;700&family=Noto+Sans+SC:wght@500&display=swap">
+<style>
+  html,body{margin:0;height:100%;background:#070B16;color:#F3EBDD;font-family:"IBM Plex Sans",system-ui,sans-serif}
+  .player{max-width:1280px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:12px}
+  canvas{width:100%;height:auto;display:block;border-radius:10px;background:#0B1120}
+  .bar{display:flex;gap:12px;align-items:center}
+  .bar button{font:inherit;background:#F3EBDD;color:#0B1120;border:0;border-radius:6px;padding:8px 16px;cursor:pointer;min-width:84px}
+  .bar input{flex:1;accent-color:#FFC24B}
+  .bar span{font-family:"JetBrains Mono",monospace;font-size:13px;color:#8D98B0;font-variant-numeric:tabular-nums}
+  body.record .bar{display:none} body.record .player{padding:0;max-width:none} body.record canvas{border-radius:0;width:1920px}
+</style>
+</head>
+<body>
+<div class="player">
+  <canvas id="cv" width="1920" height="1080"></canvas>
+  <div class="bar"><button id="pp" type="button">Play</button><input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Seek"><span id="tm">0:00</span></div>
+</div>
+<audio id="au" src="narration.mp3" preload="auto"></audio>
+<script>
+var TL = {
+ "total": 746.55,
+ "scenes": [
+  {
+   "id": "intro",
+   "title": "Why Distributed Is Hard",
+   "zh": "分布式系统难在哪",
+   "start": 0.0,
+   "dur": 30.77,
+   "beats": [
+    {
+     "text": "Episode 1: why distributed systems are hard.",
+     "zh": "第 1 集：分布式系统难在哪。",
+     "start": 0.9,
+     "dur": 3.8,
+     "speech": 3.8
+    },
+    {
+     "text": "A distributed system is one job done by several computers that talk over a network.",
+     "zh": "分布式系统，就是几台通过网络通信的计算机一起完成一件事。",
+     "start": 5.3,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "We'll take one small job, counting words in eight books, and try to spread it across machines.",
+     "zh": "我们拿一个小任务——数八本书里的词——试着把它分到多台机器上。",
+     "start": 13.022,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "By the end, you'll know your way around src/, and which files are yours to write.",
+     "zh": "看完这一集，你能在 src/ 里认路，也知道哪些文件归你写。",
+     "start": 21.613,
+     "dur": 7.557,
+     "speech": 7.557
+    }
+   ]
+  },
+  {
+   "id": "idea",
+   "title": "The Whole Idea First",
+   "zh": "先说结论",
+   "start": 30.77,
+   "dur": 67.896,
+   "beats": [
+    {
+     "text": "Here is the whole episode in two sentences.",
+     "zh": "先用两句话说完这一集。",
+     "start": 0.9,
+     "dur": 4.078,
+     "speech": 4.078
+    },
+    {
+     "text": "One machine counts our eight books in a fraction of a second.",
+     "zh": "一台机器数完八本书，只要零点几秒。",
+     "start": 5.578,
+     "dur": 5.817,
+     "speech": 5.817
+    },
+    {
+     "text": "Many machines are how the job scales, and they bring four problems one process never has.",
+     "zh": "要扩大规模就得用很多台机器，而它们带来四个单进程里从来没有的难题。",
+     "start": 11.995,
+     "dur": 7.981,
+     "speech": 7.981
+    },
+    {
+     "text": "Now the page. A, on top: one process. Read the books, Map, sort, Reduce, one output file.",
+     "zh": "下面是这张图。顶上 A：一个进程。读书、Map、排序、Reduce、一个输出文件。",
+     "start": 20.576,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "B, below: the same steps, spread over machines that pass messages.",
+     "zh": "下面 B：同样的步骤，分到几台互相发消息的机器上。",
+     "start": 29.167,
+     "dur": 5.383,
+     "speech": 5.383
+    },
+    {
+     "text": "Marker 1: a machine can die halfway.",
+     "zh": "标记 1：一台机器可能做到一半就死了。",
+     "start": 35.15,
+     "dur": 4.171,
+     "speech": 4.171
+    },
+    {
+     "text": "Marker 2: two machines can write the same file at once.",
+     "zh": "标记 2：两台机器可能同时写同一个文件。",
+     "start": 39.921,
+     "dur": 5.383,
+     "speech": 5.383
+    },
+    {
+     "text": "Marker 3: a message can vanish, and the sender can't tell what happened.",
+     "zh": "标记 3：一条消息可能消失，发的人分不清发生了什么。",
+     "start": 45.904,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "Marker 4: copies of the one record that matters must agree.",
+     "zh": "标记 4：那份最重要的记录，各个副本必须一致。",
+     "start": 52.756,
+     "dur": 5.383,
+     "speech": 5.383
+    },
+    {
+     "text": "And on the right, the five labs. Each one fights one or more of these markers.",
+     "zh": "右边是五个 Lab，每个都在对付其中一个或几个标记。",
+     "start": 58.739,
+     "dur": 7.557,
+     "speech": 7.557
+    }
+   ]
+  },
+  {
+   "id": "one",
+   "title": "One Machine",
+   "zh": "一台机器",
+   "start": 98.666,
+   "dur": 67.484,
+   "beats": [
+    {
+     "text": "Start with the version that needs no network at all: mrsequential.go.",
+     "zh": "先看完全不用网络的版本：mrsequential.go。",
+     "start": 0.9,
+     "dur": 5.383,
+     "speech": 5.383
+    },
+    {
+     "text": "The lab hands it to you as the reference answer. It runs everything in one process.",
+     "zh": "Lab 把它作为参考答案发给你，所有事都在一个进程里做完。",
+     "start": 6.883,
+     "dur": 7.557,
+     "speech": 7.557
+    },
+    {
+     "text": "The counting logic lives in a plugin, wc.go: a file of Map and Reduce functions loaded at run time.",
+     "zh": "计数逻辑在插件 wc.go 里：一个装着 Map 和 Reduce 函数、运行时才加载的文件。",
+     "start": 15.04,
+     "dur": 8.861,
+     "speech": 8.861
+    },
+    {
+     "text": "Map gets one book's text. It splits on anything that isn't a letter.",
+     "zh": "Map 拿到一本书的全文，在所有非字母处切开。",
+     "start": 24.501,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "It emits one pair per word: the word, and \"1\".",
+     "zh": "每个词吐出一对：这个词，和 \"1\"。",
+     "start": 31.353,
+     "dur": 4.948,
+     "speech": 4.948
+    },
+    {
+     "text": "mrsequential loops over the files and appends every pair to one slice, intermediate.",
+     "zh": "mrsequential 逐个文件读，把所有词对追加进同一个切片 intermediate。",
+     "start": 36.901,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "Then it sorts that slice by key, so equal words sit next to each other.",
+     "zh": "然后按键排序，相同的词就挨在一起。",
+     "start": 43.753,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "For each run of equal keys it calls Reduce, which in wc.go just counts the values.",
+     "zh": "每一段相同的键调用一次 Reduce；wc.go 里的 Reduce 只是数一下有几个值。",
+     "start": 51.475,
+     "dur": 7.557,
+     "speech": 7.557
+    },
+    {
+     "text": "Each result becomes one line of mr-out-0: the word, a space, the count.",
+     "zh": "每个结果写成 mr-out-0 的一行：词、空格、次数。",
+     "start": 59.632,
+     "dur": 6.252,
+     "speech": 6.252
+    }
+   ]
+  },
+  {
+   "id": "run",
+   "title": "The Real Run",
+   "zh": "真实运行",
+   "start": 166.15,
+   "dur": 32.665,
+   "beats": [
+    {
+     "text": "Here is the real run on the eight books in src/main.",
+     "zh": "这是在 src/main 那八本书上的真实运行。",
+     "start": 0.9,
+     "dur": 5.383,
+     "speech": 5.383
+    },
+    {
+     "text": "3.3 megabytes of text. 623,948 words. 22,107 different ones.",
+     "zh": "3.3 MB 文本，623,948 个词，其中 22,107 个不同的词。",
+     "start": 6.883,
+     "dur": 4.513,
+     "speech": 4.513
+    },
+    {
+     "text": "The top word is \"the\", 29,748 times.",
+     "zh": "最多的是 \"the\"，29,748 次。",
+     "start": 11.996,
+     "dur": 3.8,
+     "speech": 3.8
+    },
+    {
+     "text": "And the whole job takes a fraction of a second on one laptop.",
+     "zh": "整个任务在一台笔记本上只要零点几秒。",
+     "start": 16.396,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "So, a fair question: why would anyone use more than one machine?",
+     "zh": "那么问题来了：为什么还要用不止一台机器？",
+     "start": 23.248,
+     "dur": 7.817,
+     "speech": 5.817
+    }
+   ]
+  },
+  {
+   "id": "scale",
+   "title": "Now Make It a Terabyte",
+   "zh": "换成 1 TB",
+   "start": 198.815,
+   "dur": 44.182,
+   "beats": [
+    {
+     "text": "Because real inputs are not 3.3 megabytes. Google's were terabytes.",
+     "zh": "因为真实的输入不是 3.3 MB。Google 的输入是 TB 级。",
+     "start": 0.9,
+     "dur": 4.948,
+     "speech": 4.948
+    },
+    {
+     "text": "Scale our run by hand: one terabyte is about 300,000 times bigger.",
+     "zh": "按比例手算一下：1 TB 大约是它的 30 万倍。",
+     "start": 6.448,
+     "dur": 5.817,
+     "speech": 5.817
+    },
+    {
+     "text": "At the same speed, that's over ten hours on one machine. Worked out, not measured.",
+     "zh": "按同样的速度，一台机器要超过十个小时。这是推算，不是实测。",
+     "start": 12.865,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "Worse: mrsequential keeps every pair in memory. A terabyte of pairs won't fit.",
+     "zh": "更糟的是：mrsequential 把所有词对放在内存里，1 TB 的词对根本装不下。",
+     "start": 20.587,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "The MapReduce paper reports a grep over one terabyte on about 1,800 machines, in about 150 seconds.",
+     "zh": "MapReduce 论文报告：在约 1800 台机器上 grep 1 TB 数据，用时约 150 秒。",
+     "start": 27.439,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "That's the goal: speed from many machines. Now let's see what it costs.",
+     "zh": "这就是目标：靠很多台机器换速度。下面看看要付出什么代价。",
+     "start": 36.03,
+     "dur": 6.552,
+     "speech": 6.552
+    }
+   ]
+  },
+  {
+   "id": "nothing",
+   "title": "Two Machines Share Nothing",
+   "zh": "两台机器什么都不共享",
+   "start": 242.997,
+   "dur": 53.345,
+   "beats": [
+    {
+     "text": "First, the one fact that makes everything else hard.",
+     "zh": "先说一个让后面一切都变难的事实。",
+     "start": 0.9,
+     "dur": 4.513,
+     "speech": 4.513
+    },
+    {
+     "text": "Two machines, A and B. Each has its own memory. B cannot read A's slice.",
+     "zh": "两台机器 A 和 B，各有各的内存。B 读不到 A 的切片。",
+     "start": 6.013,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "The only link between them is the network. All they can do is send messages.",
+     "zh": "它们之间唯一的联系是网络，能做的只有发消息。",
+     "start": 13.735,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "So A asks B for work the way a program calls a function, except the call travels as a message.",
+     "zh": "所以 A 让 B 干活，就像程序调用一个函数，只不过这次调用是作为一条消息发出去的。",
+     "start": 21.457,
+     "dur": 9.296,
+     "speech": 9.296
+    },
+    {
+     "text": "That's a remote procedure call, RPC: send the arguments, wait for a reply message.",
+     "zh": "这叫远程过程调用，RPC：把参数发过去，等一条回复消息。",
+     "start": 31.353,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "In one process, a call always returns. Across a network, the reply might never come.",
+     "zh": "在一个进程里，调用总会返回；跨网络时，回复可能永远不来。",
+     "start": 38.64,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "Hold on to that. All four markers grow out of it.",
+     "zh": "记住这一点，四个标记都从这里长出来。",
+     "start": 46.362,
+     "dur": 5.383,
+     "speech": 5.383
+    }
+   ]
+  },
+  {
+   "id": "split",
+   "title": "Split the Work",
+   "zh": "把活分出去",
+   "start": 296.342,
+   "dur": 44.318,
+   "beats": [
+    {
+     "text": "The obvious plan: one coordinator hands out books, workers count them.",
+     "zh": "最直接的方案：一个协调者分发书，几个 worker 去数。",
+     "start": 0.9,
+     "dur": 5.383,
+     "speech": 5.383
+    },
+    {
+     "text": "The coordinator is the machine that holds the to-do list and hands out tasks.",
+     "zh": "协调者就是手里拿着任务清单、负责分活的那台机器。",
+     "start": 6.883,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "A worker is a machine that asks for a task, does it, and reports back, all by RPC.",
+     "zh": "worker 是来要任务、做完、再回报的机器，全都通过 RPC。",
+     "start": 14.17,
+     "dur": 8.426,
+     "speech": 8.426
+    },
+    {
+     "text": "Eight books, so eight map tasks, spread over a few workers.",
+     "zh": "八本书，就是八个 map 任务，分给几个 worker。",
+     "start": 23.196,
+     "dur": 5.383,
+     "speech": 5.383
+    },
+    {
+     "text": "On paper, this is just mrsequential's loop with the iterations on different machines.",
+     "zh": "纸面上，这就是把 mrsequential 的循环拆到不同机器上跑。",
+     "start": 29.179,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "In practice, every marker on our page now becomes possible. One at a time.",
+     "zh": "实际上，图上的每个标记现在都可能发生。一个一个来。",
+     "start": 36.031,
+     "dur": 6.687,
+     "speech": 6.687
+    }
+   ]
+  },
+  {
+   "id": "fail",
+   "title": "1 · A Worker Dies",
+   "zh": "难题 1 · worker 挂了",
+   "start": 340.66,
+   "dur": 61.483,
+   "beats": [
+    {
+     "text": "Worker 2 is halfway through Frankenstein, and its machine loses power.",
+     "zh": "worker 2 数《弗兰肯斯坦》数到一半，机器断电了。",
+     "start": 0.9,
+     "dur": 5.383,
+     "speech": 5.383
+    },
+    {
+     "text": "In one process, a crash ends everything, so there's nothing half-done to clean up.",
+     "zh": "在单进程里，一崩就全没了，不存在“做了一半”的状态。",
+     "start": 6.883,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "Here, the other seven books are fine. Only this task is lost.",
+     "zh": "这里，另外七本书没事，只丢了这一个任务。",
+     "start": 14.17,
+     "dur": 5.817,
+     "speech": 5.817
+    },
+    {
+     "text": "Toy: the coordinator watches a clock. Worker 2 has been quiet for a while. Is it dead?",
+     "zh": "玩具例子：协调者盯着一个钟，worker 2 已经好一阵没动静了。它死了吗？",
+     "start": 20.587,
+     "dur": 9.991,
+     "speech": 7.991
+    },
+    {
+     "text": "It can't know. A dead worker and a slow worker send exactly the same thing: nothing.",
+     "zh": "它没法知道。死掉的 worker 和慢的 worker 发来的东西一模一样：什么都没有。",
+     "start": 31.178,
+     "dur": 7.557,
+     "speech": 7.557
+    },
+    {
+     "text": "The Lab 1 tests make both happen on purpose, with a plugin called crash.go.",
+     "zh": "Lab 1 的测试故意让这两种情况都发生，用的是一个叫 crash.go 的插件。",
+     "start": 39.335,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "It kills a third of its Map and Reduce calls, and stalls another third for up to 10 seconds.",
+     "zh": "它让三分之一的 Map / Reduce 调用直接退出，另外三分之一卡住最多 10 秒。",
+     "start": 46.622,
+     "dur": 8.861,
+     "speech": 8.861
+    },
+    {
+     "text": "How the coordinator recovers is episode 3.",
+     "zh": "协调者怎么恢复，第 3 集讲。",
+     "start": 56.083,
+     "dur": 3.8,
+     "speech": 3.8
+    }
+   ]
+  },
+  {
+   "id": "conc",
+   "title": "2 · Two Writers, One File",
+   "zh": "难题 2 · 两个人写同一个文件",
+   "start": 402.143,
+   "dur": 52.041,
+   "beats": [
+    {
+     "text": "Say the coordinator gives up on worker 2 and hands Frankenstein to worker 3.",
+     "zh": "假设协调者放弃了 worker 2，把《弗兰肯斯坦》交给 worker 3。",
+     "start": 0.9,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "But worker 2 was only slow, not dead. Now both are counting the same book.",
+     "zh": "可 worker 2 只是慢，没有死。现在两个人在数同一本书。",
+     "start": 8.187,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "Both write the same output file, at the same time.",
+     "zh": "两个人同时写同一个输出文件。",
+     "start": 15.909,
+     "dur": 4.948,
+     "speech": 4.948
+    },
+    {
+     "text": "A reader could see half of one and half of the other: \"Frankenstein\" counted 30 times, or 60, or 17.",
+     "zh": "读的人可能看到一半来自这个、一半来自那个：“Frankenstein”可能数成 30、60，或者 17。",
+     "start": 21.457,
+     "dur": 9.296,
+     "speech": 9.296
+    },
+    {
+     "text": "That's concurrency: two things running at once, touching the same data.",
+     "zh": "这就是并发：两件事同时进行，碰同一份数据。",
+     "start": 31.353,
+     "dur": 5.383,
+     "speech": 5.383
+    },
+    {
+     "text": "Inside one machine, the same thing happens between threads, and Go's race detector catches it.",
+     "zh": "在一台机器内部，线程之间也会这样，Go 的竞争检测器能抓到。",
+     "start": 37.336,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "Atomic rename is episode 3; locks and races are episode 4.",
+     "zh": "原子改名在第 3 集讲，锁和竞争在第 4 集讲。",
+     "start": 45.058,
+     "dur": 5.383,
+     "speech": 5.383
+    }
+   ]
+  },
+  {
+   "id": "net",
+   "title": "3 · Did It Arrive?",
+   "zh": "难题 3 · 消息到了吗",
+   "start": 454.184,
+   "dur": 60.457,
+   "beats": [
+    {
+     "text": "Back to our RPC. Every step so far is a message, and messages can be lost.",
+     "zh": "回到 RPC。到目前为止每一步都是一条消息，而消息会丢。",
+     "start": 0.9,
+     "dur": 7.557,
+     "speech": 7.557
+    },
+    {
+     "text": "The labs simulate the network with labrpc, a fake network inside one process.",
+     "zh": "Lab 用 labrpc 模拟网络：一个进程里的“假网络”。",
+     "start": 9.057,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "Call sends a request and returns true only if a reply came back.",
+     "zh": "Call 发出请求，只有收到回复才返回 true。",
+     "start": 15.909,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "In unreliable mode, processReq, which delivers each request, drops it 10% of the time.",
+     "zh": "在不可靠模式下，负责投递请求的 processReq 有 10% 的概率丢掉它。",
+     "start": 22.761,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "And after the handler has run, it drops the reply another 10% of the time.",
+     "zh": "处理函数执行完以后，它还会再以 10% 的概率丢掉回复。",
+     "start": 30.048,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "Both cases end the same way: Call returns false.",
+     "zh": "两种情况的结局一样：Call 返回 false。",
+     "start": 37.77,
+     "dur": 4.513,
+     "speech": 4.513
+    },
+    {
+     "text": "So when you see false, did the server do the work or not?",
+     "zh": "所以看到 false 时，服务器到底做了没有？",
+     "start": 42.883,
+     "dur": 8.252,
+     "speech": 6.252
+    },
+    {
+     "text": "You can't tell. That one fact shapes the whole KV lab, episodes 5 and 8.",
+     "zh": "你分不出来。这一个事实决定了整个 KV Lab 的设计，第 5 集和第 8 集讲。",
+     "start": 51.735,
+     "dur": 7.122,
+     "speech": 7.122
+    }
+   ]
+  },
+  {
+   "id": "sofar",
+   "title": "So Far, on the Page",
+   "zh": "小结（在图上）",
+   "start": 514.641,
+   "dur": 28.739,
+   "beats": [
+    {
+     "text": "So far, on our page: band A has no markers. Nothing on it can half-fail.",
+     "zh": "到目前为止，在这张图上：A 带没有标记，那上面没有什么会“坏一半”。",
+     "start": 0.9,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "Band B has three already: a dead worker, two writers, a lost message.",
+     "zh": "B 带已经有三个了：死掉的 worker、两个写的人、丢掉的消息。",
+     "start": 8.622,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "All three come from one fact: machines share nothing and only send messages.",
+     "zh": "三个都来自同一个事实：机器之间什么都不共享，只能发消息。",
+     "start": 15.474,
+     "dur": 6.552,
+     "speech": 6.552
+    },
+    {
+     "text": "One marker left, and it's about the coordinator itself.",
+     "zh": "还剩一个标记，关于协调者本身。",
+     "start": 22.626,
+     "dur": 4.513,
+     "speech": 4.513
+    }
+   ]
+  },
+  {
+   "id": "agree",
+   "title": "4 · The Coordinator Dies",
+   "zh": "难题 4 · 协调者挂了",
+   "start": 543.38,
+   "dur": 63.604,
+   "beats": [
+    {
+     "text": "Workers can be replaced. The coordinator can't: it holds the only record of which tasks are done.",
+     "zh": "worker 可以换人，协调者不行：只有它记着哪些任务做完了。",
+     "start": 0.9,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "The natural fix: keep a copy of that record on three machines. Each copy is a replica.",
+     "zh": "自然的办法是把这份记录在三台机器上各存一份。每一份叫一个副本。",
+     "start": 9.491,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "Toy: three notebooks. One says \"task 6 done\". The other two never heard. Which one is right?",
+     "zh": "玩具例子：三本笔记本。一本写着“任务 6 做完了”，另外两本没收到。哪本是对的？",
+     "start": 18.082,
+     "dur": 9.991,
+     "speech": 7.991
+    },
+    {
+     "text": "Nobody can say, so the copies must agree on every entry, even while machines crash and messages get lost.",
+     "zh": "谁也说不清，所以副本必须对每一条都达成一致，哪怕机器在崩、消息在丢。",
+     "start": 28.673,
+     "dur": 8.861,
+     "speech": 8.861
+    },
+    {
+     "text": "Now cut the network between notebook one and the other two. Both sides keep working.",
+     "zh": "现在把第一本和另外两本之间的网络切断。两边都还在工作。",
+     "start": 38.134,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "They must not both think they're in charge, or the record splits in two.",
+     "zh": "两边不能都以为自己说了算，否则记录就分裂成两份。",
+     "start": 45.856,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "Getting copies to agree like this is called consensus: Paxos in episodes 13 and 14, Raft from episode 15.",
+     "zh": "让副本这样达成一致，叫做共识：Paxos 在第 13、14 集，Raft 从第 15 集开始。",
+     "start": 53.143,
+     "dur": 8.861,
+     "speech": 8.861
+    }
+   ]
+  },
+  {
+   "id": "labs",
+   "title": "Five Labs on One Board",
+   "zh": "五个 Lab 对上这块板子",
+   "start": 606.984,
+   "dur": 41.378,
+   "beats": [
+    {
+     "text": "Lab 1, MapReduce, is the job we just split: markers 1 and 2, crashed workers and duplicate writers.",
+     "zh": "Lab 1 MapReduce 就是刚才拆开的任务：标记 1 和 2，worker 崩溃、重复写入。",
+     "start": 0.9,
+     "dur": 8.426,
+     "speech": 8.426
+    },
+    {
+     "text": "Lab 2, a key-value server, lives entirely in marker 3: what to do when Call says false.",
+     "zh": "Lab 2 键值服务器整个都在标记 3 里：Call 返回 false 时该怎么办。",
+     "start": 9.926,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "Lab 3, Raft, is marker 4: replicas that agree despite crashes and lost messages.",
+     "zh": "Lab 3 Raft 是标记 4：机器崩、消息丢，副本照样一致。",
+     "start": 18.517,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "Lab 4 puts the key-value service on top of Raft, so it survives crashes.",
+     "zh": "Lab 4 把键值服务放到 Raft 上，让它挺过崩溃。",
+     "start": 25.804,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "Lab 5 shards it across groups, to win back the speed we started for.",
+     "zh": "Lab 5 把它分片到多个组，把最初想要的速度赢回来。",
+     "start": 33.091,
+     "dur": 6.687,
+     "speech": 6.687
+    }
+   ]
+  },
+  {
+   "id": "src",
+   "title": "Finding Your Way in src/",
+   "zh": "在 src/ 里认路",
+   "start": 648.362,
+   "dur": 49.101,
+   "beats": [
+    {
+     "text": "Everything lives in src/. Some folders are given to you; you never edit them.",
+     "zh": "所有代码都在 src/ 里。有些目录是发给你的，你不用改。",
+     "start": 0.9,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "labrpc is the fake network. tester1 runs your servers, crashes them and checks them.",
+     "zh": "labrpc 是假网络。tester1 负责启动、弄崩、检查你的服务器。",
+     "start": 8.187,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "mrapps holds the plugins, like wc.go. main holds the books and the little launchers.",
+     "zh": "mrapps 放插件，比如 wc.go；main 放那几本书和启动程序。",
+     "start": 15.474,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "Your files are the ones with comments like \"Your code here\". There are ten of them.",
+     "zh": "你要写的文件，就是带着 \"Your code here\" 这类注释的那些，一共十个。",
+     "start": 22.761,
+     "dur": 7.557,
+     "speech": 7.557
+    },
+    {
+     "text": "For Lab 1, that's mr/coordinator.go and mr/worker.go. Right now MakeCoordinator only starts its RPC server.",
+     "zh": "Lab 1 是 mr/coordinator.go 和 mr/worker.go。现在 MakeCoordinator 只启动了 RPC 服务，别的都要你写。",
+     "start": 30.918,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "make mr builds the launchers and the plugins, then runs the Lab 1 tests with the race detector on.",
+     "zh": "make mr 会编译启动程序和插件，然后打开竞争检测器跑 Lab 1 的测试。",
+     "start": 38.64,
+     "dur": 8.861,
+     "speech": 8.861
+    }
+   ]
+  },
+  {
+   "id": "recap",
+   "title": "Recap, on the Page",
+   "zh": "本集要点（在图上）",
+   "start": 697.463,
+   "dur": 26.804,
+   "beats": [
+    {
+     "text": "One: one machine does our eight books in a fraction of a second. We distribute for scale, not for small jobs.",
+     "zh": "一：一台机器零点几秒数完八本书。分布式是为了规模，不是为了小任务。",
+     "start": 0.9,
+     "dur": 9.73,
+     "speech": 9.73
+    },
+    {
+     "text": "Two: the price is four markers: failure, concurrency, an unreliable network, agreement.",
+     "zh": "二：代价是四个标记：故障、并发、不可靠的网络、一致。",
+     "start": 11.23,
+     "dur": 5.817,
+     "speech": 5.817
+    },
+    {
+     "text": "Three: a false from Call can mean \"never ran\" or \"ran, reply lost\". Design for both.",
+     "zh": "三：Call 返回 false 可能是“没执行”，也可能是“执行了但回复丢了”。两种都要考虑。",
+     "start": 17.647,
+     "dur": 7.557,
+     "speech": 7.557
+    }
+   ]
+  },
+  {
+   "id": "turn",
+   "title": "Your Turn",
+   "zh": "轮到你",
+   "start": 724.267,
+   "dur": 22.283,
+   "beats": [
+    {
+     "text": "Build wc.so and run mrsequential on the eight books yourself.",
+     "zh": "自己编译 wc.so，在八本书上跑一遍 mrsequential。",
+     "start": 0.9,
+     "dur": 4.948,
+     "speech": 4.948
+    },
+    {
+     "text": "Before you look: how many times does \"Sherlock\" appear?",
+     "zh": "先别看：\"Sherlock\" 出现了几次？",
+     "start": 6.448,
+     "dur": 6.513,
+     "speech": 4.513
+    },
+    {
+     "text": "97. Grep mr-out-0 to check. Next episode: the MapReduce model, one bucket at a time.",
+     "zh": "97 次。grep 一下 mr-out-0 就能核对。下一集：MapReduce 模型，一个桶一个桶地看。",
+     "start": 13.561,
+     "dur": 7.122,
+     "speech": 7.122
+    }
+   ]
+  }
+ ]
+};
+var W = 1920, H = 1080;
+var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const C = {bg:'#0B1120', bg2:'#16223E', ink:'#F3EBDD', dim:'#8D98B0', faint:'#3A4766', line:'#28344F', panel:'#121B31', panel2:'#1A2642',
+  sky:'#6EC8FF', coral:'#FF7A59', gold:'#FFC24B', mint:'#5EE0A8', red:'#FF4D5E', violet:'#B69CFF'};
+const F = {disp:'"Fraunces", Georgia, serif', sans:'"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif', mono:'"JetBrains Mono", Menlo, monospace', code:'Menlo, Consolas, "DejaVu Sans Mono", monospace', zh:'"Noto Sans SC", "PingFang SC", sans-serif'};
+
+/* ---------- math ---------- */
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const ramp = (t,a,b) => clamp((t-a)/(b-a), 0, 1);
+const eio = x => x<.5 ? 4*x*x*x : 1 - Math.pow(-2*x+2,3)/2;
+const eo = x => 1 - Math.pow(1-x,3);
+const eback = x => { const c1=1.70158, c3=c1+1; return 1 + c3*Math.pow(x-1,3) + c1*Math.pow(x-1,2); };
+const lerp = (a,b,t) => a + (b-a)*t;
+const rnd = i => { const x = Math.sin(i*127.1 + 311.7)*43758.5453; return x - Math.floor(x); };
+const rgba = (hex,a) => { const n = parseInt(hex.slice(1),16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; };
+function mixHex(a,b,t){ const x=parseInt(a.slice(1),16), y=parseInt(b.slice(1),16); const c=(s)=>Math.round(lerp(x>>s&255, y>>s&255, t)); return '#'+((c(16)<<16)|(c(8)<<8)|c(0)).toString(16).padStart(6,'0'); }
+
+/* ---------- drawing primitives ---------- */
+function text(s,x,y,o={}){
+  ctx.save(); ctx.globalAlpha *= (o.alpha ?? 1);
+  ctx.font = `${o.weight||500} ${o.size||28}px ${o.font||F.sans}`;
+  ctx.fillStyle = o.color || C.ink; ctx.textAlign = o.align || 'center'; ctx.textBaseline = o.base || 'middle';
+  if (o.ls) ctx.letterSpacing = o.ls + 'px';
+  if (o.shadow){ ctx.shadowColor = o.shadow; ctx.shadowBlur = 24; }
+  ctx.fillText(s,x,y); ctx.restore();
+}
+function rr(x,y,w,h,r){ ctx.beginPath(); ctx.roundRect(x,y,w,h,r); }
+function glow(x,y,r,color,a=1){ const g = ctx.createRadialGradient(x,y,0,x,y,r); g.addColorStop(0, rgba(color,.5*a)); g.addColorStop(1, rgba(color,0)); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); }
+function dot(x,y,r,color,a=1){ ctx.save(); ctx.globalAlpha *= a; glow(x,y,r*3.6,color,.9); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.restore(); }
+function qpt(a,b,bend,t){ const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, dx=b.x-a.x, dy=b.y-a.y, cx=mx-dy*bend, cy=my+dx*bend, u=1-t; return {x:u*u*a.x+2*u*t*cx+t*t*b.x, y:u*u*a.y+2*u*t*cy+t*t*b.y}; }
+function packet(a,b,p,color,o={}){
+  if (p <= 0 || p >= 1) return null;
+  const r = o.r || 9, bend = o.bend || 0;
+  ctx.save();
+  for (let i=10;i>=1;i--){ const q = qpt(a,b,bend,Math.max(0,p - .012*i)); ctx.globalAlpha = .045*(11-i); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(q.x,q.y,r*(1-i*.06),0,Math.PI*2); ctx.fill(); }
+  ctx.restore();
+  const q = qpt(a,b,bend,p);
+  if (o.shape === 'sq'){ ctx.save(); glow(q.x,q.y,r*3.4,color); ctx.fillStyle = color; rr(q.x-r,q.y-r,2*r,2*r,3); ctx.fill(); ctx.restore(); }
+  else dot(q.x,q.y,r,color);
+  if (o.label) text(o.label, q.x, q.y - r - 22, {size:o.ls||24, font:F.mono, weight:700, color});
+  return q;
+}
+function burst(x,y,k,color=C.red){ // k in 0..1
+  if (k <= 0 || k >= 1) return;
+  ctx.save(); ctx.globalAlpha *= 1-k;
+  ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x,y,14+60*eo(k),0,Math.PI*2); ctx.stroke();
+  const s = 16; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x-s,y-s); ctx.lineTo(x+s,y+s); ctx.moveTo(x+s,y-s); ctx.lineTo(x-s,y+s); ctx.stroke();
+  ctx.restore();
+}
+function cross(x,y,s,color,lw=7,a=1){ ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x-s,y-s); ctx.lineTo(x+s,y+s); ctx.moveTo(x+s,y-s); ctx.lineTo(x-s,y+s); ctx.stroke(); ctx.restore(); }
+function check(x,y,s,color,a=1){ ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = color; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(x-s,y); ctx.lineTo(x-s*.3,y+s*.7); ctx.lineTo(x+s,y-s*.6); ctx.stroke(); ctx.restore(); }
+function ringArc(x,y,r,frac,color,lw=6,a=1){ ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = rgba(color,.18); ctx.lineWidth = lw; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.stroke(); ctx.strokeStyle = color; ctx.lineCap='round'; ctx.beginPath(); ctx.arc(x,y,r,-Math.PI/2,-Math.PI/2 + Math.PI*2*clamp(frac,0,1)); ctx.stroke(); ctx.restore(); }
+function pulse(x,y,k,color,r0=40,r1=120){ if (k<=0||k>=1) return; ctx.save(); ctx.globalAlpha *= (1-k); ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x,y,lerp(r0,r1,eo(k)),0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+function tag(s,x,y,color,o={}){
+  ctx.save(); ctx.globalAlpha *= (o.alpha ?? 1);
+  ctx.font = `700 ${o.size||22}px ${F.mono}`; const w = ctx.measureText(s).width + 28, h = (o.size||22) + 18;
+  rr(x-w/2, y-h/2, w, h, h/2); ctx.fillStyle = rgba(color,.16); ctx.fill(); ctx.strokeStyle = rgba(color,.7); ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(s,x,y+1); ctx.restore();
+}
+function server(x,y,w,h,o={}){
+  const st = o.state || 'ok', a = o.alpha ?? 1;
+  const edge = st==='dead' ? C.red : st==='hot' ? C.coral : o.edge || C.sky;
+  ctx.save(); ctx.globalAlpha *= a;
+  if (st !== 'dead') glow(x,y,Math.max(w,h)*.9, edge, st==='hot'?.35:.18);
+  const g = ctx.createLinearGradient(0,y-h/2,0,y+h/2); g.addColorStop(0, st==='dead'?'#2A1822':C.panel2); g.addColorStop(1, st==='dead'?'#1A1018':C.panel);
+  rr(x-w/2,y-h/2,w,h,14); ctx.fillStyle = g; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = rgba(edge, st==='dead'?.8:.75); ctx.stroke();
+  const rows = o.rows ?? 3, pad = 16, rh = (h - pad*2) / rows;
+  for (let i=0;i<rows;i++){
+    const ry = y - h/2 + pad + rh*i + rh/2;
+    rr(x-w/2+pad, ry-rh*.32, w-pad*2, rh*.64, 6); ctx.fillStyle = 'rgba(255,255,255,.035)'; ctx.fill();
+    const on = st==='dead' ? .12 : .35 + .65*(rnd(Math.floor((o.t||0)*6)+i*17+(o.seed||0))>.4 ? 1 : .3);
+    ctx.fillStyle = rgba(st==='dead'?C.red:(o.led||C.mint), on); ctx.beginPath(); ctx.arc(x+w/2-pad-12, ry, 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = rgba(C.dim, .35); for (let k=0;k<3;k++) ctx.fillRect(x-w/2+pad+14+k*16, ry-2, 9, 4);
+  }
+  if (o.prog != null && o.prog > 0){ rr(x-w/2+pad, y+h/2-12, (w-pad*2)*o.prog, 5, 2.5); ctx.fillStyle = C.gold; ctx.fill(); }
+  ctx.restore();
+  if (o.label) text(o.label, x, y + h/2 + 28, {size:o.lsize||24, font:F.mono, weight:500, color:st==='dead'?C.red:C.dim, alpha:a});
+  if (st === 'dead') cross(x, y, Math.min(w,h)*.22, C.red, 9, a*.9);
+}
+function user(x,y,a=1,color=C.dim){
+  ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(x,y-16,15,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x,y+26,27,Math.PI,0); ctx.fill(); ctx.restore();
+}
+function hexagon(x,y,r,a=1){
+  ctx.save(); ctx.globalAlpha *= a; glow(x,y,r*2.2,C.gold,.3);
+  ctx.beginPath(); for (let i=0;i<6;i++){ const an = Math.PI/6 + i*Math.PI/3; const px = x + r*Math.cos(an), py = y + r*Math.sin(an); i ? ctx.lineTo(px,py) : ctx.moveTo(px,py); } ctx.closePath();
+  ctx.fillStyle = C.panel2; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.gold; ctx.stroke();
+  ctx.strokeStyle = rgba(C.gold,.8); ctx.lineWidth = 3; ctx.lineCap = 'round';
+  for (let i=-1;i<=1;i++){ ctx.beginPath(); ctx.moveTo(x-r*.35, y); ctx.lineTo(x+r*.35, y+i*r*.35); ctx.stroke(); }
+  ctx.restore();
+}
+function nodeCircle(x,y,r,o={}){
+  const role = o.role || 'follower', a = o.alpha ?? 1;
+  const col = role==='leader' ? C.gold : role==='candidate' ? C.coral : role==='dead' ? C.red : C.sky;
+  ctx.save(); ctx.globalAlpha *= a;
+  if (role !== 'dead') glow(x,y,r*2.1,col, role==='follower'?.25:.55);
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+  ctx.fillStyle = role==='dead' ? '#241722' : role==='leader' ? mixHex(C.panel2,C.gold,.22) : C.panel2; ctx.fill();
+  ctx.lineWidth = role==='follower' ? 3 : 5; ctx.strokeStyle = rgba(col, role==='dead'?.6:1); ctx.stroke();
+  ctx.restore();
+  text(o.name, x, y-6, {size:34, font:F.mono, weight:700, color: role==='dead'?C.faint:C.ink, alpha:a});
+  if (o.sub) text(o.sub, x, y+24, {size:18, font:F.mono, weight:500, color:C.dim, alpha:a});
+  if (role === 'leader'){ // crown
+    ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = C.gold; const cy = y - r - 26, s = 22;
+    ctx.beginPath(); ctx.moveTo(x-s,cy+10); ctx.lineTo(x-s,cy-6); ctx.lineTo(x-s*.5,cy+2); ctx.lineTo(x,cy-12); ctx.lineTo(x+s*.5,cy+2); ctx.lineTo(x+s,cy-6); ctx.lineTo(x+s,cy+10); ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+  if (role === 'dead') cross(x,y,r*.55,C.red,8,a*.9);
+}
+function wrapLines(s, maxW){ const words = s.split(' '), out = []; let cur = ''; for (const w of words){ const t = cur ? cur+' '+w : w; if (ctx.measureText(t).width > maxW && cur){ out.push(cur); cur = w; } else cur = t; } if (cur) out.push(cur); return out; }
+
+/* ---------- background ---------- */
+function background(t){
+  ctx.fillStyle = C.bg; ctx.fillRect(0,0,W,H);
+  const g = ctx.createRadialGradient(960,480,80,960,480,1150); g.addColorStop(0, C.bg2); g.addColorStop(1, rgba(C.bg,0)); ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = rgba(C.faint,.35); const off = (t*6)%48;
+  for (let x = 24; x < W; x += 48) for (let y = 24 + off; y < H; y += 48) ctx.fillRect(x, y, 2, 2);
+  const v = ctx.createRadialGradient(960,540,500,960,540,1250); v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,0,0,.55)'); ctx.fillStyle = v; ctx.fillRect(0,0,W,H);
+}
+
+/* ---------- more primitives: panels, files, disks, arrows, chips ---------- */
+function panel(x,y,w,h,o={}){ ctx.save(); ctx.globalAlpha *= (o.alpha ?? 1); rr(x-w/2,y-h/2,w,h,o.r||14); ctx.fillStyle = o.fill || C.panel; ctx.fill(); ctx.lineWidth = o.lw || 2; ctx.strokeStyle = o.edge || C.line; if (o.dash) ctx.setLineDash(o.dash); ctx.stroke(); ctx.restore(); }
+function fileIcon(x,y,w,h,o={}){
+  const a = o.alpha ?? 1, c = o.color || C.sky, f = Math.min(18, w*.22);
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a; if (o.glow) glow(x,y,Math.max(w,h)*.9,c,o.glow);
+  ctx.beginPath(); ctx.moveTo(x-w/2,y-h/2); ctx.lineTo(x+w/2-f,y-h/2); ctx.lineTo(x+w/2,y-h/2+f); ctx.lineTo(x+w/2,y+h/2); ctx.lineTo(x-w/2,y+h/2); ctx.closePath();
+  ctx.fillStyle = o.fill || C.panel2; ctx.fill(); if (o.dash) ctx.setLineDash(o.dash); ctx.strokeStyle = c; ctx.lineWidth = o.lw || 2.5; ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(x+w/2-f,y-h/2); ctx.lineTo(x+w/2-f,y-h/2+f); ctx.lineTo(x+w/2,y-h/2+f); ctx.stroke();
+  if (o.rows){ const n = o.rows, rh = Math.min(30, (h-36)/Math.max(n,1)); for (let k=0;k<n;k++){ const ry = y - h/2 + 22 + k*rh + rh/2, rc = o.rowColors ? o.rowColors[k] : c; rr(x-w/2+16, ry-rh*.22, (w-40)*(.55 + .4*rnd(k*7+(o.seed||0))), rh*.44, 4); ctx.fillStyle = rgba(rc,.75); ctx.fill(); } }
+  ctx.restore();
+  if (o.label) text(o.label, x, y + (o.ly || 0), {size:o.size||20, font:F.mono, weight:700, color:o.tcolor||c, alpha:a});
+}
+function cylinder(x,y,w,h,o={}){
+  const a = o.alpha ?? 1, c = o.color || C.sky, e = w*.16; if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a; if (o.glow !== 0) glow(x,y,Math.max(w,h)*.85,c,o.glow ?? .2);
+  ctx.beginPath(); ctx.moveTo(x-w/2,y-h/2); ctx.lineTo(x-w/2,y+h/2); ctx.ellipse(x,y+h/2,w/2,e,0,Math.PI,0,true); ctx.lineTo(x+w/2,y-h/2); ctx.closePath();
+  ctx.fillStyle = C.panel2; ctx.fill(); ctx.strokeStyle = c; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(x,y-h/2,w/2,e,0,0,Math.PI*2); ctx.fillStyle = mixHex(C.panel2,c,.18); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  if (o.inner) text(o.inner, x, y + e*.6, {size:o.isize||18, font:F.mono, weight:700, color:o.icolor||C.ink, alpha:a});
+  if (o.label) text(o.label, x, y + h/2 + e + 26, {size:o.size||22, font:F.mono, weight:700, color:o.tcolor||C.dim, alpha:a});
+}
+function arrow(a,b,color,o={}){
+  const p = o.p ?? 1, al = o.alpha ?? 1; if (p <= 0 || al <= 0) return;
+  const x = lerp(a.x,b.x,p), y = lerp(a.y,b.y,p), an = Math.atan2(b.y-a.y, b.x-a.x), s = o.head || 14;
+  ctx.save(); ctx.globalAlpha *= al; ctx.strokeStyle = color; ctx.lineWidth = o.lw || 3; ctx.lineCap = 'round'; if (o.dash) ctx.setLineDash(o.dash);
+  ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(x - Math.cos(an)*s*.6, y - Math.sin(an)*s*.6); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x - s*Math.cos(an-.45), y - s*Math.sin(an-.45)); ctx.lineTo(x - s*Math.cos(an+.45), y - s*Math.sin(an+.45)); ctx.closePath(); ctx.fill(); ctx.restore();
+}
+function chip(s,x,y,c,k=1,o={}){ if (k <= 0) return; ctx.save(); ctx.translate(x,y); ctx.scale(k,k); tag(s,0,0,c,{size:o.size||20, alpha:o.alpha ?? 1}); ctx.restore(); }
+function lockIcon(x,y,s,color,a=1){ ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = color; ctx.lineWidth = s*.16; ctx.beginPath(); ctx.arc(x, y - s*.15, s*.36, Math.PI, 0); ctx.stroke(); rr(x - s*.55, y - s*.15, s*1.1, s*.85, s*.14); ctx.fillStyle = color; ctx.fill(); ctx.restore(); }
+// piecewise-linear map through [t, v] knots
+function knots(t, ks){ if (t <= ks[0][0]) return ks[0][1]; for (let i=1;i<ks.length;i++) if (t <= ks[i][0]) return lerp(ks[i-1][1], ks[i][1], (t - ks[i-1][0])/(ks[i][0] - ks[i-1][0])); return ks[ks.length-1][1]; }
+
+/* ---------- 3Blue1Brown-style primitives: formulas, joints, plots, gears, code ----------
+   eq(parts,cx,y,size,{left,glow,alpha}) parts = [str, color, alpha?, sub?] — colour each symbol by meaning, fade terms in one at a time
+   wipe(p,x,y,w,h,fn) reveals whatever fn draws left→right (the 'Write' feel); brace(x1,x2,y,label,color,a) a curly brace with a label
+   arm/arcArrow/springArc (rotating links, torques, springs), axes/plot (graphs drawn progressively), gear, codeBox, label2 (English over Chinese)
+   ------------------------------------------------------------------------------------------ */
+const DEG = Math.PI / 180;
+// math-ish font for formulas
+const MF = (size, w = 600) => `italic ${w} ${size}px ${F.disp}`;
+// parts: [string, color, alpha?, sub?]; drawn left→right, centred on cx (or left-aligned with o.left)
+function eq(parts, cx, y, size, o = {}) {
+  ctx.save(); ctx.globalAlpha *= (o.alpha ?? 1);
+  const wOf = p => { ctx.font = MF(p[3] ? size * .55 : size); return ctx.measureText(p[0]).width; };
+  const total = parts.reduce((s, p) => s + wOf(p), 0);
+  let x = o.left ? cx : cx - total / 2;
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  for (const p of parts) {
+    const w = wOf(p), a = p[2] ?? 1;
+    if (a > 0) { ctx.save(); ctx.globalAlpha *= a; ctx.font = MF(p[3] ? size * .55 : size); ctx.fillStyle = p[1];
+      if (o.glow && p[1] !== C.dim) { ctx.shadowColor = rgba(p[1], .55); ctx.shadowBlur = 18; }
+      ctx.fillText(p[0], x, y + (p[3] ? size * .28 : 0)); ctx.restore(); }
+    x += w;
+  }
+  ctx.restore(); return total;
+}
+// a joint: pivot at (px,py), link of length L at angle th (radians, CCW from +x, screen y up)
+const tip = (px, py, L, th) => ({x: px + L * Math.cos(th), y: py - L * Math.sin(th)});
+function arm(px, py, L, th, o = {}) {
+  const a = o.alpha ?? 1; if (a <= 0) return;
+  const e = tip(px, py, L, th), c = o.color || C.sky;
+  ctx.save(); ctx.globalAlpha *= a; ctx.lineCap = 'round';
+  if (o.ghost) { ctx.setLineDash([14, 14]); ctx.strokeStyle = rgba(c, .8); ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(e.x, e.y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(e.x, e.y, o.mass || 22, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); return; }
+  glow((px + e.x) / 2, (py + e.y) / 2, L * .6, c, .25);
+  ctx.strokeStyle = c; ctx.lineWidth = o.lw || 18; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(e.x, e.y); ctx.stroke();
+  ctx.fillStyle = C.panel2; ctx.strokeStyle = C.ink; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(px, py, 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = C.ink; ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = o.massColor || C.ink; ctx.beginPath(); ctx.arc(e.x, e.y, o.mass || 22, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+// curved arrow along a circle of radius r from angle a0 to a1 (math angles)
+function arcArrow(px, py, r, a0, a1, color, o = {}) {
+  const al = o.alpha ?? 1; if (al <= 0 || Math.abs(a1 - a0) < .01) return;
+  ctx.save(); ctx.globalAlpha *= al; ctx.strokeStyle = color; ctx.lineWidth = o.lw || 6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(px, py, r, -a0, -a1, a1 > a0); ctx.stroke();
+  const dir = Math.sign(a1 - a0), e = tip(px, py, r, a1), tan = -a1 - dir * Math.PI / 2, s = o.head || 20;
+  ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(e.x + Math.cos(tan) * s * .2, e.y + Math.sin(tan) * s * .2);
+  ctx.lineTo(e.x - Math.cos(tan - .5) * s, e.y - Math.sin(tan - .5) * s); ctx.lineTo(e.x - Math.cos(tan + .5) * s, e.y - Math.sin(tan + .5) * s); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+// coil spring drawn along an arc of radius r between angles a0 and a1
+function springArc(px, py, r, a0, a1, color, o = {}) {
+  const al = o.alpha ?? 1; if (al <= 0) return;
+  const n = 120, coils = Math.max(4, Math.abs(a1 - a0) / DEG / 4), amp = o.amp || 16;
+  ctx.save(); ctx.globalAlpha *= al; ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.beginPath();
+  for (let i = 0; i <= n; i++) { const u = i / n, an = lerp(a0, a1, u), rad = r + amp * Math.sin(u * coils * Math.PI * 2) * Math.min(1, u * 8, (1 - u) * 8);
+    const q = tip(px, py, rad, an); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
+  ctx.stroke(); ctx.restore();
+}
+// axes with origin at (x, y0): width w, half-height h
+function axes(x, y0, w, h, o = {}) {
+  const a = o.alpha ?? 1; if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = C.dim; ctx.lineWidth = 2.5;
+  arrow({x, y: y0 + (o.full ? h : 0)}, {x, y: y0 - h - 10}, C.dim, {lw: 2.5, head: 12});
+  arrow({x: x - (o.both ? w : 0), y: y0}, {x: x + w + 10, y: y0}, C.dim, {lw: 2.5, head: 12});
+  ctx.restore();
+  if (o.xl) text(o.xl, x + w + 10, y0 + 34, {size: 24, font: F.mono, color: C.dim, align: 'right', alpha: a});
+  if (o.yl) text(o.yl, x + 14, y0 - h - 10, {size: 26, font: F.mono, color: C.dim, align: 'left', alpha: a});
+}
+// plot fn(u) for u in [0, prog] mapped to x..x+w; value v ↦ y0 - v*k
+function plot(fn, x, y0, w, k, prog, color, o = {}) {
+  if (prog <= 0) return null;
+  ctx.save(); ctx.globalAlpha *= (o.alpha ?? 1); ctx.strokeStyle = color; ctx.lineWidth = o.lw || 5; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.shadowColor = rgba(color, .6); ctx.shadowBlur = 14; ctx.beginPath();
+  const n = 300; let q;
+  for (let i = 0; i <= n * prog; i++) { const u = i / n; q = {x: x + u * w, y: y0 - fn(u) * k}; i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
+  ctx.stroke(); ctx.restore();
+  return q;
+}
+function gear(x, y, r, teeth, rot, color, o = {}) {
+  const a = o.alpha ?? 1; if (a <= 0) return;
+  const depth = o.depth || 12, n = teeth * 4;
+  ctx.save(); ctx.globalAlpha *= a; glow(x, y, r * 1.4, color, .25); ctx.beginPath();
+  for (let i = 0; i <= n; i++) { const an = rot + i / n * Math.PI * 2, rad = (i % 4 === 1 || i % 4 === 2) ? r + depth : r;
+    const q = {x: x + rad * Math.cos(an), y: y + rad * Math.sin(an)}; i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
+  ctx.closePath(); ctx.fillStyle = mixHex(C.panel2, color, .22); ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
+  ctx.strokeStyle = rgba(color, .9); ctx.lineWidth = Math.max(3, r * .05);
+  const sp = o.spokes || 3;
+  for (let i = 0; i < sp; i++) { const an = rot + i / sp * Math.PI * 2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + r * .78 * Math.cos(an), y + r * .78 * Math.sin(an)); ctx.stroke(); }
+  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, Math.max(6, r * .12), 0, Math.PI * 2); ctx.fill();
+  if (o.mark) { const q = {x: x + r * .78 * Math.cos(rot), y: y + r * .78 * Math.sin(rot)}; ctx.fillStyle = C.gold; ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(7, r * .06), 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+// Every code pane reports itself while it is on screen: slides.mjs collects these into the 课件's code index.
+// A helper that draws real source calls codeShown({file, a, b, fn?, key?}) (lines a–b of the file); codeBox reports its title.
+const codeShown = info => { if (window.__codeSink) window.__codeSink(info); };
+// code panel; lines: [text, color?]; hl(i) → highlight 0..1, mark(i) → [glyph, color, alpha]
+// lines drawn in F.code (no ligatures: JetBrains Mono would show -> as → and |= as ⊨, so the code no longer matches the file); o.lh = line height
+function codeBox(x, y, w, title, lines, o = {}) {
+  const lh = o.lh || 50, h = 90 + lines.length * lh, a = o.alpha ?? 1; if (a <= 0) return;
+  if (a > .5) codeShown({title, file: o.file, a: o.from, b: o.to});
+  panel(x + w / 2, y + h / 2, w, h, {alpha: a, fill: '#0E1628'});
+  ctx.save(); ctx.globalAlpha *= a;
+  [C.red, C.gold, C.mint].forEach((c, i) => { ctx.fillStyle = rgba(c, .7); ctx.beginPath(); ctx.arc(x + 30 + i * 26, y + 32, 7, 0, Math.PI * 2); ctx.fill(); });
+  ctx.restore();
+  text(title, x + 120, y + 33, {size: 22, font: F.mono, color: C.dim, align: 'left', alpha: a});
+  lines.forEach((l, i) => {
+    const ly = y + 90 + i * lh, h1 = o.hl ? o.hl(i) : 0;
+    if (h1 > 0) { ctx.save(); ctx.globalAlpha *= a * h1; rr(x + 14, ly - lh / 2 + 4, w - 28, lh - 8, 8); ctx.fillStyle = rgba(l[2] || C.gold, .14); ctx.fill(); ctx.fillStyle = l[2] || C.gold; ctx.fillRect(x + 14, ly - lh / 2 + 6, 5, lh - 12); ctx.restore(); }
+    const dimmed = o.hl ? .45 + .55 * Math.max(h1, o.base ?? 0) : 1;
+    text(l[0], x + 40, ly, {size: o.size || 27, font: F.code, weight: 500, color: l[1] || C.ink, align: 'left', alpha: a * dimmed});
+    const m = o.mark && o.mark(i); if (m && m[2] > 0) text(m[0], x + w - 40, ly, {size: 30, font: F.mono, weight: 700, color: m[1], align: 'right', alpha: a * m[2]});
+  });
+  return h;
+}
+function label2(en, zh, x, y, o = {}) { // English over Chinese
+  const a = o.alpha ?? 1, c = o.color || C.ink;
+  text(en, x, y, {size: o.size || 30, weight: 600, color: c, align: o.align || 'center', alpha: a});
+  text(zh, x, y + (o.size || 30) * 1.15, {size: (o.size || 30) * .72, font: F.zh, color: C.dim, align: o.align || 'center', alpha: a});
+}
+// damped step response, ζ<1 : value goes 0 → 1
+const stepResp = (t, w, z) => { const wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + z / Math.sqrt(1 - z * z) * Math.sin(wd * t)); };
+// reveal what fn() draws from left to right, p in 0..1 (a 'Write' animation for formulas, curves, rows of chips)
+function wipe(p, x, y, w, h, fn) { if (p <= 0) return; ctx.save(); ctx.beginPath(); ctx.rect(x, y, w * clamp(p, 0, 1), h); ctx.clip(); fn(); ctx.restore(); }
+// curly brace under (dir=1) or over (dir=-1) the span x1..x2 at height y, with a label
+function brace(x1, x2, y, label, color, a = 1, dir = 1) {
+  if (a <= 0) return; const m = (x1 + x2) / 2, d = 18 * dir;
+  ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.beginPath();
+  ctx.moveTo(x1, y); ctx.quadraticCurveTo(x1, y + d, x1 + 20, y + d); ctx.lineTo(m - 20, y + d); ctx.quadraticCurveTo(m, y + d, m, y + 2 * d);
+  ctx.quadraticCurveTo(m, y + d, m + 20, y + d); ctx.lineTo(x2 - 20, y + d); ctx.quadraticCurveTo(x2, y + d, x2, y); ctx.stroke(); ctx.restore();
+  if (label) text(label, m, y + 2 * d + 26 * dir, {size: 26, color, alpha: a, font: /[一-鿿]/.test(label) ? F.zh : F.sans});
+}
+// generated by data.py from data/runs.sh and 6.5840/ at 513cac0; do not edit
+const D = {"sentence": "I am by birth a Genevese, and my family is one of the most distinguished of that republic.", "words": ["I", "am", "by", "birth", "a", "Genevese", "and", "my", "family", "is", "one", "of", "the", "most", "distinguished", "of", "that", "republic"], "sorted": ["Genevese", "I", "a", "am", "and", "birth", "by", "distinguished", "family", "is", "most", "my", "of", "of", "one", "republic", "that", "the"], "books": [{"file": "pg-being_ernest.txt", "bytes": 138885, "words": 24130, "distinct": 3419, "frank": 0}, {"file": "pg-dorian_gray.txt", "bytes": 453168, "words": 83498, "distinct": 7718, "frank": 0}, {"file": "pg-frankenstein.txt", "bytes": 441033, "words": 78329, "distinct": 7765, "frank": 30}, {"file": "pg-grimm.txt", "bytes": 540174, "words": 105203, "distinct": 5767, "frank": 0}, {"file": "pg-huckleberry_finn.txt", "bytes": 594262, "words": 120780, "distinct": 7398, "frank": 0}, {"file": "pg-metamorphosis.txt", "bytes": 139054, "words": 25528, "distinct": 3242, "frank": 0}, {"file": "pg-sherlock_holmes.txt", "bytes": 581863, "words": 108992, "distinct": 8788, "frank": 0}, {"file": "pg-tom_sawyer.txt", "bytes": 412665, "words": 77488, "distinct": 8483, "frank": 0}], "total_bytes": 3301104, "total_words": 623948, "distinct": 22107, "top": [["the", 29748], ["and", 23612], ["to", 16079], ["I", 14296], ["of", 13536]], "times": [0.14, 0.13, 0.14, 0.14, 0.14], "med": 0.14, "scale": 302929, "hours": 11.8, "sherlock": 97, "code": {"map": {"file": "src/mrapps/wc.go", "from": 19, "to": 32, "lines": ["func Map(filename string, contents string) []mr.KeyValue {", "\t// function to detect word separators.", "\tff := func(r rune) bool { return !unicode.IsLetter(r) }", "", "\t// split contents into an array of words.", "\twords := strings.FieldsFunc(contents, ff)", "", "\tkva := []mr.KeyValue{}", "\tfor _, w := range words {", "\t\tkv := mr.KeyValue{w, \"1\"}", "\t\tkva = append(kva, kv)", "\t}", "\treturn kva", "}"]}, "reduce": {"file": "src/mrapps/wc.go", "from": 37, "to": 40, "lines": ["func Reduce(key string, values []string) string {", "\t// return the number of occurrences of this word.", "\treturn strconv.Itoa(len(values))", "}"]}, "seqread": {"file": "src/main/mrsequential.go", "from": 38, "to": 51, "lines": ["\tintermediate := []mr.KeyValue{}", "\tfor _, filename := range os.Args[2:] {", "\t\tfile, err := os.Open(filename)", "\t\tif err != nil {", "\t\t\tlog.Fatalf(\"cannot open %v\", filename)", "\t\t}", "\t\tcontent, err := ioutil.ReadAll(file)", "\t\tif err != nil {", "\t\t\tlog.Fatalf(\"cannot read %v\", filename)", "\t\t}", "\t\tfile.Close()", "\t\tkva := mapf(filename, string(content))", "\t\tintermediate = append(intermediate, kva...)", "\t}"]}, "seqsort": {"file": "src/main/mrsequential.go", "from": 59, "to": 62, "lines": ["\tsort.Sort(ByKey(intermediate))", "", "\toname := \"mr-out-0\"", "\tofile, _ := os.Create(oname)"]}, "seqreduce": {"file": "src/main/mrsequential.go", "from": 68, "to": 84, "lines": ["\ti := 0", "\tfor i < len(intermediate) {", "\t\tj := i + 1", "\t\tfor j < len(intermediate) && intermediate[j].Key == intermediate[i].Key {", "\t\t\tj++", "\t\t}", "\t\tvalues := []string{}", "\t\tfor k := i; k < j; k++ {", "\t\t\tvalues = append(values, intermediate[k].Value)", "\t\t}", "\t\toutput := reducef(intermediate[i].Key, values)", "", "\t\t// this is the correct format for each line of Reduce output.", "\t\tfmt.Fprintf(ofile, \"%v %v\\n\", intermediate[i].Key, output)", "", "\t\ti = j", "\t}"]}, "call": {"file": "src/labrpc/labrpc.go", "from": 110, "to": 113, "lines": ["// send an RPC, wait for the reply.", "// the return value indicates success; false means that", "// no reply was received from the server.", "func (e *ClientEnd) Call(svcMeth string, args interface{}, reply interface{}) bool {"]}, "procreq": {"file": "src/labrpc/labrpc.go", "from": 290, "to": 290, "lines": ["func (rn *Network) processReq(req reqMsg) {"]}, "dropreq": {"file": "src/labrpc/labrpc.go", "from": 302, "to": 306, "lines": ["\t\tif reliable == false && (rand.Int()%1000) < 100 {", "\t\t\t// drop the request, return as if timeout", "\t\t\treq.replyCh <- replyMsg{false, nil}", "\t\t\treturn", "\t\t}"]}, "droprep": {"file": "src/labrpc/labrpc.go", "from": 344, "to": 351, "lines": ["\t\tserverDead = rn.isServerDead(req.endname, servername, server)", "", "\t\tif replyOK == false || serverDead == true {", "\t\t\t// server was killed while we were waiting; return error.", "\t\t\treq.replyCh <- replyMsg{false, nil}", "\t\t} else if reliable == false && (rand.Int()%1000) < 100 {", "\t\t\t// drop the reply, return as if timeout", "\t\t\treq.replyCh <- replyMsg{false, nil}"]}, "mkcoord": {"file": "src/mr/coordinator.go", "from": 52, "to": 60, "lines": ["func MakeCoordinator(sockname string, files []string, nReduce int) *Coordinator {", "\tc := Coordinator{}", "", "\t// Your code here.", "", "", "\tc.server(sockname)", "\treturn &c", "}"]}, "make": {"file": "src/Makefile", "from": 43, "to": 57, "lines": ["mr: .FORCE check-version mr-build", "\tcd mr; go test $(VERB) $(RACE) $(RUN)", "", "mr-build: .FORCE check-version", "\tgo build $(RACE) -o main/mrsequential main/mrsequential.go", "\tgo build $(RACE) -o main/mrcoordinator main/mrcoordinator.go", "\tgo build $(RACE) -o main/mrworker main/mrworker.go&", "\t(cd mrapps && go build $(RACE) -buildmode=plugin wc.go) || exit 1", "\t(cd mrapps && go build $(RACE) -buildmode=plugin indexer.go) || exit 1", "\t(cd mrapps && go build $(RACE) -buildmode=plugin mtiming.go) || exit 1", "\t(cd mrapps && go build $(RACE) -buildmode=plugin rtiming.go) || exit 1", "\t(cd mrapps && go build $(RACE) -buildmode=plugin jobcount.go) || exit 1", "\t(cd mrapps && go build $(RACE) -buildmode=plugin early_exit.go) || exit 1", "\t(cd mrapps && go build $(RACE) -buildmode=plugin crash.go) || exit 1", "\t(cd mrapps && go build $(RACE) -buildmode=plugin nocrash.go) || exit 1"]}, "crash": {"file": "src/mrapps/crash.go", "from": 20, "to": 32, "lines": ["func maybeCrash() {", "\tmax := big.NewInt(1000)", "\trr, _ := crand.Int(crand.Reader, max)", "\tif rr.Int64() < 330 {", "\t\t// crash!", "\t\tos.Exit(1)", "\t} else if rr.Int64() < 660 {", "\t\t// delay for a while.", "\t\tmaxms := big.NewInt(10 * 1000)", "\t\tms, _ := crand.Int(crand.Reader, maxms)", "\t\ttime.Sleep(time.Duration(ms.Int64()) * time.Millisecond)", "\t}", "}"]}}, "yours": ["kvraft1/rsm/rsm.go", "kvraft1/server.go", "kvsrv1/lock/lock.go", "kvsrv1/server.go", "mr/coordinator.go", "mr/worker.go", "raft1/raft.go", "shardkv1/shardctrler/shardctrler.go", "shardkv1/shardgrp/client.go", "shardkv1/shardgrp/server.go"]};
+/* =========================================================
+   Episode 1 — Why Distributed Is Hard: Counting Eight Books
+   Colour legend (the whole episode):
+     gold   = the data: books, (word, "1") pairs, counts
+     sky    = machines and processes (workers, servers); band A of the framework page
+     ink    = the coordinator
+     the four markers: red = 1 a machine dies · coral = 2 two writers · violet = 3 a lost message · mint = 4 copies agree
+   Every number comes from ep01_data.js (data.py runs mrsequential + wc.go on the eight books and cuts the code).
+   The framework page (page(), drawn in its own coordinates and filmed through a clipped window under the heading) is
+   built in "idea", told again in "sofar", "labs" and "recap"; miniPage() is its small copy in every other scene.
+   ========================================================= */
+const SCN = {};
+
+/* ---------- helpers ---------- */
+const fi = (lt, t, d = .5) => eo(ramp(lt, t, t + d));
+const fo = (lt, t, d = .5) => 1 - ramp(lt, t, t + d);
+const win = (lt, t0, t1, d = .45) => fi(lt, t0, d) * (t1 === undefined ? 1 : fo(lt, t1 - d, d));
+const fmtN = n => Math.round(n).toLocaleString('en-US');
+const zt = (s, x, y, o = {}) => text(s, x, y, {font: F.zh, size: 22, color: C.dim, ...o});
+function line(x1, y1, x2, y2, color, lw = 2, a = 1, dash) { if (a <= 0) return; ctx.save(); ctx.globalAlpha *= a; ctx.strokeStyle = color; ctx.lineWidth = lw; if (dash) ctx.setLineDash(dash); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore(); }
+// a small bilingual note: English, Chinese under it
+function note(en, zh, x, y, o = {}) {
+  const a = o.alpha ?? 1, c = o.color || C.ink, al = o.align || 'center', s = o.size || 26;
+  text(en, x, y, {size: s, weight: 600, color: c, align: al, alpha: a});
+  text(zh, x, y + s * 1.1, {size: s * .74, font: F.zh, color: C.dim, align: al, alpha: a});
+}
+// a tag pointing to a later episode
+const epTag = (n, x, y, a, c = C.dim) => tag(`→ ep${String(n).padStart(2, '0')} · 第 ${n} 集`, x, y, c, {size: 18, alpha: a});
+// 玩具例子 / toy: a made-up setup to see the idea, not a real run
+const toyTag = (a, x = 200, y = 196) => tag('TOY · 玩具例子', x, y, C.gold, {size: 18, alpha: a});
+
+/* ---- the four markers ---- */
+const PC = [C.red, C.coral, C.violet, C.mint];
+const PN = [['a machine can die halfway', '机器可能做到一半就死了'], ['two machines can write one file at once', '两台机器可能同时写同一个文件'],
+            ['a message can vanish', '一条消息可能消失'], ['copies of the one record must agree', '那份唯一的记录，副本必须一致']];
+function marker(i, x, y, r, a, hot = 0) {
+  if (a <= 0) return;
+  const c = PC[i];
+  ctx.save(); ctx.globalAlpha *= a; if (hot > 0) glow(x, y, r * 3.2, c, .55 * hot);
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = mixHex(C.panel, c, .3 + .45 * hot); ctx.fill();
+  ctx.lineWidth = Math.max(2, r * .12); ctx.strokeStyle = c; ctx.stroke(); ctx.restore();
+  text(String(i + 1), x, y + 1, {size: r * 1.1, font: F.mono, weight: 700, color: C.ink, alpha: a});
+}
+
+/* =========================================================
+   The framework page: one pass of the episode, top to bottom.
+   A = one process (mrsequential) · B = the same job over machines, with markers 1–4 where it breaks ·
+   cards = each marker's real cause (cut from 6.5840/ by data.py) · L = the five labs, tied to their markers.
+   ========================================================= */
+const PW = 1800, PH = 1020;
+const WIN = {x: 60, y: 252, w: 1800, h: 582}, WC = {x: 960, y: 252 + 291};
+const FIT = Math.min(WIN.w / PW, WIN.h / PH);
+const CAM = {whole: [PW / 2, PH / 2, FIT], A: [705, 200, 1.25], B: [705, 470, 1.25], m12: [700, 612, 1.2], m34: [705, 705, .92], all4: [900, 700, .75]};
+function camAt(lt, ks, d = 1.4) { // ks: [[t, cam], …] — glide to each cam from its t
+  let c = ks[0][1];
+  for (let i = 1; i < ks.length; i++) { const k = eio(ramp(lt, ks[i][0], ks[i][0] + d)); if (k <= 0) break; c = c.map((v, j) => lerp(v, ks[i][1][j], k)); }
+  return c;
+}
+const HEAD = ['One machine counts eight books in a fraction of a second. Many machines scale, and bring four problems one process never has.',
+              '一台机器零点几秒数完八本书。很多台机器能扩大规模，也带来四个单进程里没有的难题。'];
+function heading(a) { if (a <= 0) return; text(HEAD[0], 960, 190, {size: 25, weight: 600, alpha: a}); text(HEAD[1], 960, 224, {size: 19, font: F.zh, color: C.dim, alpha: a}); }
+function pageView(c, a, o) {
+  if (a <= 0) return;
+  panel(WC.x, WC.y, WIN.w + 6, WIN.h + 6, {alpha: a, fill: 'rgba(12,19,36,.55)', edge: C.line, lw: 1.5, r: 10});
+  ctx.save(); ctx.globalAlpha *= a; ctx.beginPath(); ctx.rect(WIN.x, WIN.y, WIN.w, WIN.h); ctx.clip();
+  ctx.translate(WC.x, WC.y); ctx.scale(c[2], c[2]); ctx.translate(-c[0], -c[1]);
+  page(o); ctx.restore();
+}
+// a caption laid on the page window (the "so far" / recap line being told)
+function caption(en, zh, a, c = C.gold) {
+  if (a <= 0) return;
+  panel(960, 868, 1400, 62, {alpha: a * .95, fill: '#0B1226', edge: rgba(c, .6)});
+  text(en, 960, 857, {size: 24, weight: 600, color: c, alpha: a}); text(zh, 960, 884, {size: 17, font: F.zh, color: C.dim, alpha: a});
+}
+const AN = [['8 books', '八本书', 'L39–48'], ['Map', 'wc.go', 'L49'], ['intermediate', '一个切片', 'L50'], ['Sort', '排序', 'L59'], ['Reduce', 'wc.go', 'L68–84'], ['mr-out-0', '一个输出文件', 'L61']];
+const BW = [{x: 600, y: 350}, {x: 600, y: 465}, {x: 600, y: 580}], BCO = {x: 190, y: 480}, BRD = [{x: 930, y: 420}, {x: 930, y: 540}], BF = [{x: 1220, y: 420}, {x: 1220, y: 540}];
+const MK = [{x: 700, y: 425}, {x: 1268, y: 378}, {x: 415, y: 525}, {x: 330, y: 400}];
+const CARD = [0, 1, 2, 3].map(i => ({x: i % 2 ? 710 : 0, y: i < 2 ? 705 : 865, w: 690, h: 145}));
+const LABS = [['Lab 1', 'MapReduce', 'MapReduce', [0, 1]], ['Lab 2', 'KV server', '键值服务器', [2]], ['Lab 3', 'Raft', 'Raft', [3]],
+              ['Lab 4', 'KV on Raft', 'Raft 上的键值服务', [0, 2, 3]], ['Lab 5', 'Sharded KV', '分片键值服务', []]];
+const LY = i => 80 + i * 188;
+const cl = s => s.replace(/^\t+/, '');
+function page(o) {
+  const A = o.A || 0, B = o.B || 0, m = o.m || [], mh = o.mh || [], L = o.L || 0, lh = o.lh || [], link = o.link || [];
+  // ---- band A: one process
+  if (A > 0) {
+    const ka = clamp(A * 3, 0, 1), hot = o.aHot || 0;
+    ctx.save(); ctx.globalAlpha *= ka; if (hot > 0) glow(700, 125, 700, C.sky, .18 * hot);
+    rr(0, 10, 1410, 225, 16); ctx.fillStyle = mixHex('#0E1628', C.sky, .06 + .08 * hot); ctx.fill(); ctx.setLineDash([10, 8]); ctx.lineWidth = 2; ctx.strokeStyle = rgba(C.sky, .45 + .4 * hot); ctx.stroke(); ctx.restore();
+    text('A', 26, 46, {size: 30, font: F.mono, weight: 700, color: C.sky, align: 'left', alpha: ka});
+    text('one process · 一个进程', 62, 46, {size: 22, font: F.zh, weight: 600, color: C.ink, align: 'left', alpha: ka});
+    text('src/main/mrsequential.go', 330, 46, {size: 19, font: F.code, color: C.dim, align: 'left', alpha: ka});
+    tag(D.med.toFixed(2) + ' s · this run · 本次运行', 1180, 46, C.sky, {size: 17, alpha: ka * clamp(A * 6 - 5, 0, 1)});
+    AN.forEach(([en, zh, ln], i) => {
+      const k = clamp(A * 6 - i, 0, 1), x = 120 + i * 235, y = 128; if (k <= 0) return;
+      if (i) arrow({x: x - 235 + 102, y}, {x: x - 104, y}, C.dim, {alpha: k, lw: 2.5, head: 12});
+      panel(x, y, 200, 84, {alpha: k, fill: i === 2 ? mixHex(C.panel2, C.gold, .12) : C.panel2, edge: i === 2 ? rgba(C.gold, .6) : rgba(C.sky, .45)});
+      text(en, x, y - 12, {size: en.length > 9 ? 22 : 25, font: i === 2 || i === 5 ? F.code : F.sans, weight: 600, color: i === 2 ? C.gold : C.ink, alpha: k});
+      text(zh, x, y + 20, {size: 17, font: /[一-鿿]/.test(zh) ? F.zh : F.code, color: C.dim, alpha: k});
+      text(ln, x, y + 66, {size: 17, font: F.code, color: C.dim, alpha: k});
+    });
+  }
+  // ---- band B: the same job over machines that pass messages
+  if (B > 0) {
+    const kb = clamp(B * 3, 0, 1), hot = o.bHot || 0;
+    ctx.save(); ctx.globalAlpha *= kb; if (hot > 0) glow(700, 470, 760, C.sky, .14 * hot);
+    rr(0, 255, 1410, 430, 16); ctx.fillStyle = mixHex('#0E1628', C.sky, .04 + .06 * hot); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = rgba(C.dim, .35 + .3 * hot); ctx.stroke(); ctx.restore();
+    text('B', 26, 291, {size: 30, font: F.mono, weight: 700, color: C.sky, align: 'left', alpha: kb});
+    text('many machines, passing messages · 多台机器，互相发消息', 62, 291, {size: 22, font: F.zh, weight: 600, color: C.ink, align: 'left', alpha: kb});
+    const k1 = clamp(B * 4 - .5, 0, 1), k2 = clamp(B * 4 - 1.5, 0, 1), k3 = clamp(B * 4 - 2.5, 0, 1);
+    server(BCO.x, BCO.y, 250, 160, {alpha: k1, edge: C.ink, led: C.ink, rows: 3, label: 'coordinator · 协调者', lsize: 20, seed: 9, t: 0});
+    BW.forEach((p, j) => { line(BCO.x + 126, BCO.y, p.x - 86, p.y, C.dim, 2, k2 * .8, [7, 6]); server(p.x, p.y, 170, 70, {alpha: k2, rows: 1, label: 'worker ' + (j + 1) + (j === 1 ? ' · Frankenstein' : ''), lsize: 17, seed: j, t: 0}); });
+    BRD.forEach((p, j) => { BW.forEach(w => line(w.x + 86, w.y, p.x - 81, p.y, C.dim, 1.5, k3 * .5, [5, 6]));
+      server(p.x, p.y, 160, 66, {alpha: k3, rows: 1, label: 'reduce', lsize: 17, seed: 5 + j, t: 0});
+      arrow({x: p.x + 82, y: p.y}, {x: BF[j].x - 34, y: p.y}, C.gold, {alpha: k3, lw: 2, head: 10});
+      fileIcon(BF[j].x, BF[j].y, 54, 66, {color: C.gold, alpha: k3, rows: 3, seed: j}); });
+    text('mr-out-*', BF[1].x, BF[1].y + 58, {size: 16, font: F.code, color: C.gold, alpha: k3});
+  }
+  // ---- markers and their cards
+  for (let i = 0; i < 4; i++) {
+    const k = m[i] || 0, h = mh[i] || 0; if (k <= 0) continue;
+    marker(i, MK[i].x, MK[i].y, 25, k, h);
+    const c = CARD[i], col = PC[i];
+    ctx.save(); ctx.globalAlpha *= k; if (h > 0) glow(c.x + c.w / 2, c.y + c.h / 2, 420, col, .14 * h);
+    rr(c.x, c.y, c.w, c.h, 14); ctx.fillStyle = mixHex('#0E1628', col, .07 + .1 * h); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = rgba(col, .35 + .55 * h); ctx.stroke(); ctx.restore();
+    marker(i, c.x + 38, c.y + 38, 20, k, h);
+    text(PN[i][0], c.x + 72, c.y + 30, {size: 23, weight: 600, color: C.ink, align: 'left', alpha: k});
+    text(PN[i][1], c.x + 72, c.y + 58, {size: 17, font: F.zh, color: C.dim, align: 'left', alpha: k});
+    const rows = i === 0 ? [['crash.go', 23, cl(D.code.crash.lines[3]), '→ os.Exit(1)'], ['', 26, cl(D.code.crash.lines[6]), '→ sleep ≤ 10 s']]
+               : i === 2 ? [['labrpc.go', 302, cl(D.code.dropreq.lines[0]), ''], ['', 349, cl(D.code.droprep.lines[5]), '']] : null;
+    if (rows) {
+      rows.forEach(([f, n, s, gl], r) => { const y = c.y + 94 + r * 30;
+        text(String(n), c.x + 58, y, {size: 15, font: F.code, color: C.dim, align: 'right', alpha: k});
+        text(s, c.x + 70, y, {size: i === 0 ? 19 : 17, font: F.code, color: C.ink, align: 'left', alpha: k});
+        if (gl) text(gl, c.x + c.w - 18, y, {size: 16, font: F.mono, weight: 700, color: col, align: 'right', alpha: k}); });
+      text(i === 0 ? 'src/mrapps/crash.go' : 'src/labrpc/labrpc.go · processReq()', c.x + c.w - 18, c.y + 30, {size: 14, font: F.code, color: C.dim, align: 'right', alpha: k});
+      if (k > .5 && (o.alpha ?? 1) > .5) codeShown(i === 0 ? {key: 'pg-crash', file: 'src/mrapps/crash.go', a: 23, b: 26, fn: 'maybeCrash'} : {key: 'pg-drop', file: 'src/labrpc/labrpc.go', a: 302, b: 349, fn: 'processReq'});
+    } else {
+      const t = i === 1 ? ['one task handed out twice: the first worker was only slow', '同一个任务派了两次：第一个 worker 只是慢']
+                        : ['only the coordinator knows which tasks are done', '只有协调者知道哪些任务做完了'];
+      text(t[0], c.x + 72, c.y + 98, {size: 18, color: C.dim, align: 'left', alpha: k}); text(t[1], c.x + 72, c.y + 124, {size: 15, font: F.zh, color: C.dim, align: 'left', alpha: k});
+    }
+  }
+  // the root of markers 1–3 (told in "sofar")
+  if (o.root > 0) { line(30, 678, 1380, 678, C.gold, 3, o.root); text('all from one fact: machines share nothing, they only send messages · 都来自同一个事实：机器什么都不共享，只能发消息', 705, 663, {size: 18, font: F.zh, weight: 600, color: C.gold, alpha: o.root}); }
+  // ---- column L: the five labs
+  if (L > 0) {
+    const kl = clamp(L * 3, 0, 1);
+    text('L', 1458, 40, {size: 30, font: F.mono, weight: 700, color: C.gold, align: 'left', alpha: kl});
+    text('five labs · 五个 Lab', 1494, 40, {size: 22, font: F.zh, weight: 600, color: C.ink, align: 'left', alpha: kl});
+    LABS.forEach(([n, en, zh, mm], i) => {
+      const k = clamp(L * 5 - i, 0, 1), h = lh[i] || 0, y0 = LY(i); if (k <= 0) return;
+      ctx.save(); ctx.globalAlpha *= k; if (h > 0) glow(1620, y0 + 82, 260, C.gold, .25 * h);
+      rr(1450, y0, 340, 165, 14); ctx.fillStyle = mixHex(C.panel, C.gold, .1 * h); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = h > 0 ? rgba(C.gold, .4 + .6 * h) : C.line; ctx.stroke(); ctx.restore();
+      text(n, 1474, y0 + 38, {size: 28, font: F.mono, weight: 700, color: h > 0 ? C.gold : C.ink, align: 'left', alpha: k});
+      text(en, 1474, y0 + 76, {size: 22, weight: 600, color: C.ink, align: 'left', alpha: k});
+      text(zh, 1474, y0 + 102, {size: 16, font: F.zh, color: C.dim, align: 'left', alpha: k});
+      mm.forEach((t, j) => marker(t, 1490 + j * 48, y0 + 138, 16, k));
+      if (i === 4) tag('speed · 速度', 1545, y0 + 138, C.gold, {size: 16, alpha: k});
+      const lk = (link[i] || 0) * k;
+      if (lk > 0) { mm.forEach(t => line(1450, y0 + 82, MK[t].x + 24, MK[t].y, PC[t], 3, lk * .9, [9, 7]));
+        if (i === 4) line(1450, y0 + 82, 1290, 60, C.gold, 3, lk * .9, [9, 7]); }
+    });
+  }
+}
+// the small copy of the page under the progress ticks: lit parts {A, B, m:[4], L}
+function miniPage(o, a = 1) {
+  if (a <= 0) return;
+  const y = 130, h = 38, x0 = 1238, m = o.m || [];
+  const seg = (x, w, k, lab, c) => { ctx.save(); ctx.globalAlpha *= a; rr(x, y - h / 2, w, h, 9); ctx.fillStyle = mixHex(C.panel, c, .16 * k); ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = k > 0 ? rgba(c, .35 + .6 * k) : C.line; ctx.stroke(); ctx.restore();
+    text(lab, x + 17, y + 1, {size: 16, font: F.mono, weight: 700, color: k > 0 ? c : C.faint, alpha: a}); };
+  const kA = o.A || 0, kB = Math.max(o.B || 0, ...m.map(v => v || 0)), kL = o.L || 0;
+  seg(x0, 130, kA, 'A', C.sky);
+  for (let i = 0; i < 6; i++) { ctx.save(); ctx.globalAlpha *= a * (.35 + .65 * kA); ctx.fillStyle = kA > 0 ? C.sky : C.faint; ctx.beginPath(); ctx.arc(x0 + 44 + i * 15, y, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+  seg(x0 + 140, 236, kB, 'B', C.sky);
+  for (let i = 0; i < 4; i++) marker(i, x0 + 140 + 60 + i * 46, y, 13, a * (.3 + .7 * (m[i] || 0)), m[i] || 0);
+  seg(x0 + 386, 216, kL, 'L', C.gold);
+  for (let i = 0; i < 5; i++) { ctx.save(); ctx.globalAlpha *= a * (.35 + .65 * kL); rr(x0 + 386 + 40 + i * 33, y - 10, 24, 20, 4); ctx.fillStyle = kL > 0 ? rgba(C.gold, .7) : C.faint; ctx.fill(); ctx.restore(); }
+}
+
+/* ---- real source panes, cut from 6.5840/ by data.py ---- */
+function srcView(x, y, w, key, o = {}) {
+  const S = D.code[key], a = o.alpha ?? 1, lh = o.lh || 30, fs = o.size || 18;
+  const rows = S.lines.map((s, i) => [S.from + i, s.replace(/\t/g, '    ')]);
+  const head = 58, h = head + rows.length * lh + 12;
+  if (a <= 0) return {ys: {}, h};
+  if (a > .5) codeShown({key, file: S.file, a: S.from, b: S.to, fn: o.fn});
+  panel(x + w / 2, y + h / 2, w, h, {alpha: a, fill: '#0E1628', edge: rgba(C.faint, .9), lw: 1.5});
+  const dir = S.file.slice(0, S.file.lastIndexOf('/') + 1), f = S.file.slice(dir.length);
+  ctx.save(); ctx.font = `500 17px ${F.mono}`; const dw = ctx.measureText(dir).width; ctx.font = `700 20px ${F.mono}`; const fw = ctx.measureText(f).width; ctx.restore();
+  text(dir, x + 22, y + 29, {size: 17, font: F.mono, color: C.dim, align: 'left', alpha: a});
+  text(f, x + 22 + dw, y + 29, {size: 20, font: F.mono, weight: 700, color: C.ink, align: 'left', alpha: a});
+  text(`  L${S.from}` + (S.to > S.from ? `–${S.to}` : '') + (o.fn ? '  ·  ' + o.fn : ''), x + 22 + dw + fw, y + 29, {size: 18, font: F.mono, weight: 700, color: C.gold, align: 'left', alpha: a});
+  const ys = {}, notes = [];
+  rows.forEach(([n, s], i) => {
+    const ly = y + head + i * lh + lh / 2; ys[n] = ly;
+    const k = o.hl ? o.hl(n) : 0, c = o.hc ? o.hc(n) : C.gold;
+    if (k > 0) { ctx.save(); ctx.globalAlpha *= a * k; rr(x + 10, ly - lh / 2 + 2, w - 20, lh - 4, 5); ctx.fillStyle = rgba(c, .16); ctx.fill(); ctx.fillStyle = c; ctx.fillRect(x + 10, ly - lh / 2 + 4, 4, lh - 8); ctx.restore(); }
+    const dim = o.hl ? .42 + .58 * Math.max(k, o.base ?? 0) : 1, cm = /^\s*(\/\/|#)/.test(s);
+    text(String(n), x + 64, ly, {size: 15, font: F.code, color: k > 0 ? C.ink : C.faint, align: 'right', alpha: a});
+    text(s, x + 82, ly, {size: fs, font: F.code, color: cm ? C.dim : C.ink, align: 'left', alpha: a * dim});
+    const m = o.mark && o.mark(n);
+    if (m && m[2] > 0) { // the value beside the line; when the line is too long for it, in a callout row under the pane (never over the code)
+      ctx.save(); ctx.font = `500 ${fs}px ${F.code}`; const lw = ctx.measureText(s).width; ctx.font = `700 16px ${F.mono}`; const tw = ctx.measureText(m[0]).width + 28; ctx.restore();
+      if (x + 82 + lw + 20 < x + w - 18 - tw) tag(m[0], x + w - 18 - tw / 2, ly, m[1], {size: 16, alpha: a * m[2]});
+      else notes.push([n, m, tw]);
+    }
+  });
+  notes.forEach(([n, m, tw], i) => { const ny = y + h + 24 + i * 38;
+    text('L' + n, x + 18, ny, {size: 16, font: F.code, color: m[1], align: 'left', alpha: a * m[2]});
+    tag(m[0], x + 78 + tw / 2, ny, m[1], {size: 16, alpha: a * m[2]}); });
+  return {ys, h};
+}
+const inR = (n, a, b) => n >= a && n <= b ? 1 : 0;
+
+/* ---- a book ---- */
+const BOOKS = D.books.map(b => b.file.replace(/^pg-|\.txt$/g, ''));
+const BOOKT = {being_ernest: 'Ernest', dorian_gray: 'Dorian Gray', frankenstein: 'Frankenstein', grimm: 'Grimm', huckleberry_finn: 'Huck Finn', metamorphosis: 'Metamorphosis', sherlock_holmes: 'Sherlock', tom_sawyer: 'Tom Sawyer'};
+const FRANK = BOOKS.indexOf('frankenstein');
+function book(i, x, y, a = 1, o = {}) {
+  if (a <= 0) return;
+  const s = o.s || 1, c = o.color || C.gold;
+  fileIcon(x, y, 58 * s, 74 * s, {color: c, alpha: a, rows: 3, seed: i * 3, glow: o.glow, dash: o.dash});
+  if (o.label !== false) text(BOOKT[BOOKS[i]], x, y + 37 * s + 18, {size: 16 * Math.max(.9, s), font: F.mono, color: o.tc || C.dim, alpha: a});
+}
+
+/* ---- 0. Intro ---- */
+SCN.intro = (lt, b, d) => {
+  const a1 = fi(lt, .3, 1), out = fo(lt, b[3] - .2, .6);
+  text('EPISODE 01', 960, 300, {size: 24, font: F.mono, weight: 700, color: C.gold, ls: 10, alpha: a1 * out});
+  text('Why Distributed Is Hard', 960, 390 + 30 * (1 - a1), {size: 110, font: F.disp, weight: 700, alpha: a1 * out, shadow: 'rgba(0,0,0,.6)'});
+  text('分布式系统难在哪', 960, 480, {size: 40, font: F.zh, color: C.dim, alpha: a1 * out});
+  // b1: what a distributed system is: several computers, one job, over a network
+  const k1 = win(lt, b[1] + .1, b[2] - .1);
+  const P = [{x: 700, y: 650}, {x: 960, y: 600}, {x: 1220, y: 650}];
+  P.forEach((p, j) => P.slice(j + 1).forEach(q => line(p.x, p.y, q.x, q.y, C.dim, 2, k1 * fi(lt, b[1] + .8), [7, 6])));
+  P.forEach((p, j) => server(p.x, p.y, 150, 80, {t: lt, rows: 1, alpha: k1 * fi(lt, b[1] + j * .2, .5), seed: j}));
+  for (let j = 0; j < 3; j++) { const t0 = b[1] + 1.4 + j * .9; packet(P[j], P[(j + 1) % 3], ramp(lt, t0, t0 + .8), C.gold, {r: 7}); }
+  note('several computers, one job, over a network', '几台计算机，一件事，通过网络', 960, 735, {alpha: k1 * fi(lt, b[1] + 1), size: 24, color: C.dim});
+  // b2: eight books → a few machines
+  const k2 = win(lt, b[2], b[3] - .1);
+  for (let i = 0; i < 8; i++) book(i, 330 + i * 100, 640, fi(lt, b[2] + i * .08, .5) * k2, {s: .8});
+  for (let j = 0; j < 3; j++) { arrow({x: 1140, y: 640}, {x: 1330, y: 560 + j * 80}, C.dim, {alpha: k2 * fi(lt, b[2] + 1, .5), lw: 2}); server(1420, 560 + j * 80, 140, 64, {t: lt, rows: 1, alpha: k2 * fi(lt, b[2] + 1.2, .5), seed: j}); }
+  // b3: src/
+  const k3 = fi(lt, b[3] + .2, .7);
+  text('6.5840/src/', 960, 430, {size: 64, font: F.code, weight: 700, color: C.sky, alpha: k3});
+  note('given to you  ·  yours to write', '发给你的  ·  你要写的', 960, 540, {alpha: fi(lt, b[3] + .9, .6), size: 30, color: C.dim});
+};
+
+/* ---- 1. The whole idea first: two sentences, then the framework page built part by part ---- */
+SCN.idea = (lt, b, d) => {
+  // b0: "in two sentences"; b1, b2: the sentences, large; b3: they become the heading and the page opens under them
+  const big = fo(lt, b[3] - .5, .5);
+  text('In two sentences', 960, 470, {size: 56, font: F.disp, weight: 700, alpha: win(lt, .3, b[1]) * big});
+  text('两句话说完这一集', 960, 535, {size: 26, font: F.zh, color: C.dim, alpha: win(lt, .3, b[1]) * big});
+  const s1 = fi(lt, b[1] + .1, .6) * big, s2 = fi(lt, b[2] + .1, .6) * big;
+  text('One machine counts our eight books', 960, 360, {size: 50, font: F.disp, weight: 700, alpha: s1});
+  text('in a fraction of a second.', 960, 420, {size: 50, font: F.disp, weight: 700, color: C.sky, alpha: s1});
+  text('一台机器数完八本书，只要零点几秒。', 960, 472, {size: 26, font: F.zh, color: C.dim, alpha: s1});
+  text('Many machines are how the job scales,', 960, 580, {size: 44, font: F.disp, weight: 700, alpha: s2});
+  text('and they bring four problems one process never has.', 960, 636, {size: 44, font: F.disp, weight: 700, color: C.coral, alpha: s2});
+  text('要扩大规模就得用很多台机器，而它们带来四个单进程里从来没有的难题。', 960, 688, {size: 26, font: F.zh, color: C.dim, alpha: s2});
+  for (let i = 0; i < 4; i++) marker(i, 810 + i * 100, 760, 22, s2 * fi(lt, b[2] + 1 + i * .25, .4));
+  const pa = fi(lt, b[3] + .1, .7);
+  heading(fi(lt, b[3] - .1, .7));
+  const c = camAt(lt, [[0, CAM.A], [b[4] - .3, CAM.B], [b[5] - .3, CAM.m12], [b[7] - .3, CAM.m34], [b[9] - .2, CAM.whole]]);
+  const m = [0, 1, 2, 3].map(i => fi(lt, b[5 + i] + .2, .7)), mh = [0, 1, 2, 3].map(i => win(lt, b[5 + i] + .2, b[6 + i] ?? b[9]));
+  pageView(c, pa, {A: ramp(lt, b[3] + .4, b[3] + 5), aHot: win(lt, b[3] + .4, b[4]), B: ramp(lt, b[4] + .2, b[4] + 4.5), bHot: win(lt, b[4] + .2, b[5]),
+    m, mh, L: ramp(lt, b[9] + .3, b[9] + 4), lh: [0, 1, 2, 3, 4].map(i => win(lt, b[9] + .5 + i * .7, b[9] + 1.4 + i * .7)), alpha: pa});
+};
+
+/* ---- 2. One machine: mrsequential, read in the order it runs ---- */
+const STOPS = [['Read', '读文件'], ['Map', 'Map'], ['Sort', '排序'], ['Reduce', 'Reduce'], ['Write', '写结果']];
+function stopStrip(x, y, cur, a) { // cur: fractional index of the current stop
+  if (a <= 0) return;
+  const w = 150;
+  STOPS.forEach((s, i) => {
+    const k = clamp(1 - Math.abs(cur - i), 0, 1), xx = x + i * w;
+    if (i) line(xx - w + 34, y, xx - 34, y, C.faint, 2, a);
+    ctx.save(); ctx.globalAlpha *= a; ctx.beginPath(); ctx.arc(xx, y, 14, 0, Math.PI * 2); ctx.fillStyle = k > .5 ? C.gold : (i < cur ? rgba(C.gold, .5) : C.panel2); ctx.fill(); ctx.strokeStyle = C.gold; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+    text(s[0], xx, y + 34, {size: 20, weight: 600, color: k > .5 ? C.ink : C.dim, alpha: a});
+    text(s[1], xx, y + 58, {size: 15, font: F.zh, color: C.dim, alpha: a});
+  });
+}
+// the 18 pairs of the Frankenstein sentence: positions before (sentence order) and after sorting
+function pairPos(i) { const c = i % 3, r = Math.floor(i / 3); return {x: 75 + c * 245, y: 410 + r * 50}; }
+SCN.one = (lt, B, d) => {
+  miniPage({A: 1}, fi(lt, .2));
+  // beats: B2 plugin, B3 Map splits, B4 emits pairs, B5 the loop, B6 sort, B7 Reduce, B8 mr-out-0
+  const b = [B[0], B[1], B[2], B[3], B[5], B[6], B[7], B[8]];
+  const a = fi(lt, .2, .6);
+  const cur = knots(lt, [[0, 0], [b[2], 0], [b[2] + .6, 1], [b[4], 1], [b[4] + .6, 0], [b[5] - .4, 0], [b[5] + .3, 2], [b[6], 2], [b[6] + .6, 3], [b[7], 3], [b[7] + .6, 4]]);
+  stopStrip(110, 228, cur, a);
+  // b1: one process around everything
+  const kp = fi(lt, b[1], .7);
+  panel(430, 505, 800, 640, {alpha: kp * .9, fill: 'rgba(18,27,49,.35)', edge: rgba(C.sky, .55), dash: [10, 8]});
+  text('one process · 一个进程', 812, 208, {size: 18, font: F.zh, color: C.sky, align: 'right', alpha: kp});
+  // b2: the sentence (Map gets one book's whole text; we follow one sentence of it)
+  const ks = fi(lt, b[2] + .3, .7) * fo(lt, b[3] + 1.6, .6);
+  text('pg-frankenstein.txt · L610–611', 60, 312, {size: 17, font: F.mono, color: C.gold, align: 'left', alpha: ks});
+  ctx.save(); ctx.font = `500 26px ${F.sans}`; const sl = wrapLines(D.sentence, 740); ctx.restore();
+  sl.forEach((s, i) => text(s, 60, 352 + i * 38, {size: 26, align: 'left', alpha: ks}));
+  // b3: split into pairs; b5: they move to sorted order
+  const kpair = fi(lt, b[3] + .4, .6), ksort = eio(ramp(lt, b[5] + .3, b[5] + 2.2));
+  const used = {};
+  D.words.forEach((w, i) => {
+    let j = D.sorted.indexOf(w, 0); while (used[j]) j = D.sorted.indexOf(w, j + 1); used[j] = 1;
+    const p0 = pairPos(i), p1 = pairPos(j), x = lerp(p0.x, p1.x, ksort), y = lerp(p0.y, p1.y, ksort) + 30 * (1 - kpair);
+    const isOf = w === 'of', hot = isOf ? fi(lt, b[6] + .3, .5) : 0, dimO = 1 - .55 * fi(lt, b[6] + .3, .5) * (isOf ? 0 : 1);
+    const ka = fi(lt, b[3] + .4 + i * .05, .4) * dimO;
+    if (ka <= 0) return;
+    tag(`${w}  "1"`, x + 100, y, hot > .5 ? C.gold : mixHex(C.dim, C.gold, .6), {size: 18, alpha: ka});
+  });
+  // b4: all of it goes into intermediate
+  const ki = fi(lt, b[4] + .4, .6) * fo(lt, b[6]);
+  brace(60, 800, 680, '', C.gold, ki, 1);
+  text('intermediate  []mr.KeyValue', 430, 728, {size: 20, font: F.code, color: C.gold, alpha: ki});
+  text(`18 pairs from this sentence · ${fmtN(D.total_words)} from all eight books`, 430, 762, {size: 17, color: C.dim, alpha: ki});
+  text('18 个来自这句话 · 八本书一共 ' + fmtN(D.total_words) + ' 个', 430, 788, {size: 15, font: F.zh, color: C.dim, alpha: ki});
+  // b6: the run of "of" (sorted slots 12 and 13) → Reduce → "2"; b7: one line of mr-out-0
+  const kr = fi(lt, b[6] + .8, .6), o1 = pairPos(12), o2 = pairPos(13), mx = (o1.x + o2.x) / 2 + 100;
+  brace(o1.x + 40, o2.x + 160, o1.y + 22, '', C.gold, kr * fo(lt, b[7]), 1);
+  arrow({x: mx, y: o1.y + 62}, {x: mx, y: 706}, C.gold, {alpha: kr * fo(lt, b[7]), p: eo(ramp(lt, b[6] + .8, b[6] + 1.4))});
+  text('Reduce("of", ["1", "1"])  →  "2"', 430, 740, {size: 22, font: F.code, color: C.gold, alpha: kr * fo(lt, b[7])});
+  const ko = fi(lt, b[7] + .3, .6);
+  fileIcon(110, 750, 64, 80, {color: C.gold, alpha: ko, rows: 0});
+  text('mr-out-0', 110, 808, {size: 15, font: F.mono, color: C.gold, alpha: ko});
+  text('of 2', 170, 730, {size: 28, font: F.code, align: 'left', alpha: ko});
+  text(`the ${D.top[0][1]}    ← all eight books · 八本书合计`, 170, 772, {size: 22, font: F.code, color: C.dim, align: 'left', alpha: fi(lt, b[7] + 1.2, .6)});
+  // the code, right side, in the order it runs
+  const X = 860, Y = 186, Wd = 1020;
+  srcView(X, Y, Wd, 'map', {alpha: win(lt, b[2] + .2, b[4]), fn: 'Map()', hl: n => b[3] > lt ? inR(n, 19, 19) : (inR(n, 21, 21) + inR(n, 24, 24) + inR(n, 28, 28)),
+    mark: n => n === 21 ? ['separator = not a letter · 分隔符', C.gold, fi(lt, b[3] + .3)] : n === 28 ? ['("of", "1")', C.gold, fi(lt, B[4] + .2)] : null});
+  tag('plugin = Map + Reduce, loaded at run time · 插件：运行时加载的 Map 和 Reduce', 1370, 740, C.sky, {size: 17, alpha: win(lt, b[2] + .6, b[4])});
+  srcView(X, Y, Wd, 'seqread', {alpha: win(lt, b[4], b[5]), fn: 'main()', hl: n => inR(n, 49, 50),
+    mark: n => n === 49 ? ['mapf = wc.go Map', C.gold, fi(lt, b[4] + .5)] : n === 50 ? ['+18 pairs · 词对', C.gold, fi(lt, b[4] + 1)] : null});
+  srcView(X, Y, Wd, 'seqsort', {alpha: win(lt, b[5], b[6]), fn: 'main()', hl: n => inR(n, 59, 59),
+    mark: n => n === 59 ? ['sort by Key · 按键排序', C.gold, fi(lt, b[5] + .5)] : null});
+  srcView(X, Y, Wd, 'seqreduce', {alpha: win(lt, b[6]), fn: 'main()', lh: 30, hl: n => lt < b[7] ? inR(n, 70, 73) * fi(lt, b[6] + .2) + inR(n, 78, 78) * fi(lt, b[6] + 1.2) : inR(n, 81, 81),
+    mark: n => n === 72 ? ['j stops after the 2nd "of"', C.gold, fi(lt, b[6] + .5) * fo(lt, b[7])] : n === 78 ? ['reducef = wc.go Reduce → "2"', C.gold, fi(lt, b[6] + 1.2)] : n === 81 ? ['"of 2"', C.gold, fi(lt, b[7] + .3)] : null});
+};
+
+/* ---- 3. The real run ---- */
+function stat(x, y, val, en, zh, a, c = C.gold) {
+  if (a <= 0) return;
+  panel(x, y, 400, 170, {alpha: a, fill: C.panel});
+  text(val, x, y - 18, {size: 54, font: F.mono, weight: 700, color: c, alpha: a});
+  text(en, x, y + 40, {size: 22, color: C.ink, alpha: a});
+  text(zh, x, y + 66, {size: 16, font: F.zh, color: C.dim, alpha: a});
+}
+SCN.run = (lt, b, d) => {
+  miniPage({A: 1}, fi(lt, .2));
+  const out = fo(lt, b[4] - .1, .6);
+  panel(960, 230, 1100, 76, {alpha: fi(lt, .2) * out, fill: '#0E1628'});
+  text('$ ./mrsequential wc.so pg-*.txt', 440, 230, {size: 26, font: F.code, color: C.mint, align: 'left', alpha: fi(lt, .2) * out});
+  const c1 = eo(ramp(lt, b[1], b[1] + 2.5));
+  stat(540, 420, (D.total_bytes / 1e6 * c1).toFixed(1) + ' MB', 'of text, 8 books', '文本，八本书', fi(lt, b[1]) * out);
+  stat(960, 420, fmtN(D.total_words * c1), 'words', '个词', fi(lt, b[1] + .4) * out);
+  stat(1380, 420, fmtN(D.distinct * c1), 'different words', '个不同的词', fi(lt, b[1] + .8) * out);
+  const c2 = eo(ramp(lt, b[2], b[2] + 1.6));
+  stat(750, 640, '"the" ' + fmtN(D.top[0][1] * c2), 'the top word', '出现最多的词', fi(lt, b[2]) * out);
+  const k3 = fi(lt, b[3]) * out, f3 = eio(ramp(lt, b[3] + .2, b[3] + 1.4));
+  panel(1170, 640, 400, 170, {alpha: k3});
+  ringArc(1060, 640, 52, f3 * D.med, C.sky, 8, k3);
+  text((D.med * f3).toFixed(2) + ' s', 1250, 622, {size: 54, font: F.mono, weight: 700, color: C.sky, alpha: k3});
+  text('one laptop, median of ' + D.times.length + ' runs', 1250, 676, {size: 18, color: C.dim, alpha: k3});
+  text('一台笔记本，' + D.times.length + ' 次运行的中位数', 1250, 700, {size: 15, font: F.zh, color: C.dim, alpha: k3});
+  // b4: the question
+  const q = fi(lt, b[4] + .3, .7);
+  text('So why more than one machine?', 960, 470, {size: 64, font: F.disp, weight: 700, alpha: q});
+  text('为什么还要用不止一台机器？', 960, 550, {size: 34, font: F.zh, color: C.dim, alpha: q});
+};
+
+/* ---- 4. Now make it a terabyte ---- */
+SCN.scale = (lt, b, d) => {
+  miniPage({A: 1}, fi(lt, .2));
+  const k0 = fi(lt, b[0] + .3) * fo(lt, b[3] - .2);
+  // area: 1 TB square vs the 3.3 MB speck (side ratio = sqrt(302,929) ≈ 550)
+  const side = 520, sp = side / Math.sqrt(D.scale), grow = eio(ramp(lt, b[0] + .8, b[0] + 2.4));
+  ctx.save(); ctx.globalAlpha *= k0; rr(1240 - side / 2 * grow, 490 - side / 2 * grow, side * grow, side * grow, 6); ctx.fillStyle = rgba(C.gold, .12); ctx.fill(); ctx.strokeStyle = rgba(C.gold, .7); ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+  ctx.save(); ctx.globalAlpha *= k0; ctx.fillStyle = C.gold; ctx.fillRect(1240 - side / 2 + 4, 490 - side / 2 + 4, Math.max(2, sp), Math.max(2, sp)); ctx.restore();
+  pulse(1240 - side / 2 + 5, 490 - side / 2 + 5, ramp(lt, b[0] + 1.2, b[0] + 2.4), C.gold, 6, 60);
+  text('8 books · 3.3 MB', 1240 - side / 2 + 20, 490 - side / 2 - 22, {size: 20, font: F.mono, color: C.gold, align: 'left', alpha: k0});
+  text('1 TB', 1240, 500, {size: 72, font: F.mono, weight: 700, color: C.gold, alpha: k0 * grow});
+  // b1: the ratio, b2: the time, worked out from this run's time
+  const k1 = fi(lt, b[1] + .2) * fo(lt, b[3] - .2);
+  eq([['1 TB ÷ 3.3 MB', C.gold], ['  ≈  ', C.dim], [fmtN(D.scale), C.gold]], 120, 330, 50, {left: true, alpha: k1});
+  const k2 = fi(lt, b[2] + .2) * fo(lt, b[3] - .2);
+  eq([[D.med.toFixed(2) + ' s', C.sky], ['  ×  ', C.dim], [fmtN(D.scale), C.gold]], 120, 450, 50, {left: true, alpha: k2});
+  eq([['≈  ', C.dim], [fmtN(D.scale * D.med), C.sky], [' s  ≈  ', C.dim], [D.hours.toFixed(1), C.sky], [' hours', C.sky]], 120, 540, 50, {left: true, alpha: fi(lt, b[2] + 1) * fo(lt, b[3] - .2)});
+  tag('worked out, not measured · 推算，不是实测', 380, 640, C.dim, {size: 18, alpha: fi(lt, b[2] + 1.6) * fo(lt, b[3] - .2)});
+  // b3: memory
+  const k3 = win(lt, b[3] + .2, b[4]);
+  panel(560, 560, 520, 290, {alpha: k3, edge: C.sky});
+  text('RAM', 560, 740, {size: 24, font: F.mono, weight: 700, color: C.sky, alpha: k3});
+  const rowsUp = 13 * eo(ramp(lt, b[3] + .6, b[3] + 3.4));
+  for (let r = 0; r < 13; r++) { if (r > rowsUp) break; const over = r >= 8, yy = 680 - r * 32;
+    for (let c = 0; c < 10; c++) { ctx.save(); ctx.globalAlpha *= k3 * Math.min(1, rowsUp - r + .3); rr(330 + c * 46, yy - 11, 40, 22, 4); ctx.fillStyle = over ? C.red : rgba(C.gold, .7); ctx.fill(); ctx.restore(); } }
+  text("won't fit · 装不下", 830, 300, {size: 22, font: F.zh, color: C.red, align: 'left', alpha: k3 * fi(lt, b[3] + 2.6)});
+  text('intermediate []mr.KeyValue', 1280, 430, {size: 24, font: F.code, color: C.gold, alpha: k3});
+  text(fmtN(D.total_words) + ' pairs × ' + fmtN(D.scale), 1280, 490, {size: 26, font: F.mono, color: C.ink, alpha: k3});
+  text('≈ ' + (D.total_words * D.scale / 1e11).toFixed(1) + ' × 10¹¹ pairs, all in memory', 1280, 540, {size: 26, font: F.mono, color: C.red, alpha: fi(lt, b[3] + 1.5) * k3});
+  text('全部放在内存里 · 推算', 1280, 580, {size: 18, font: F.zh, color: C.dim, alpha: fi(lt, b[3] + 1.5) * k3});
+  // b4: the paper's run
+  const k4 = fi(lt, b[4] + .2);
+  for (let i = 0; i < 1800; i++) { const c = i % 60, r = Math.floor(i / 60); const ka = k4 * ramp(lt, b[4] + .2 + r * .04, b[4] + .6 + r * .04);
+    if (ka > 0) { ctx.fillStyle = rgba(C.sky, .85 * ka); ctx.fillRect(220 + c * 12, 300 + r * 12, 7, 7); } }
+  text('≈ 1,800 machines · 约 1800 台机器', 580, 690, {size: 24, color: C.sky, alpha: k4});
+  eq([['1 TB grep', C.gold], ['  ≈  ', C.dim], ['150 s', C.sky]], 1400, 440, 64, {alpha: fi(lt, b[4] + 1)});
+  tag('MapReduce paper (OSDI 2004) · 论文数据', 1400, 540, C.dim, {size: 18, alpha: fi(lt, b[4] + 1.6)});
+  // b5: the goal
+  const k5 = fi(lt, b[5] + .2);
+  chip('GOAL: SPEED · 目标：速度', 1400, 650, C.gold, eback(ramp(lt, b[5] + .2, b[5] + .8)), {size: 24, alpha: k5});
+};
+
+/* ---- 5. Two machines share nothing (toy) ---- */
+SCN.nothing = (lt, b, d) => {
+  miniPage({B: 1}, fi(lt, .2));
+  toyTag(fi(lt, .3));
+  const MA = {x: 470, y: 420}, MB = {x: 1450, y: 420};
+  const k0 = fi(lt, .3, .7), last = fo(lt, b[6] - .2, .6);
+  // b0–b1: two machines, each with its own memory
+  [[MA, 'machine A', '机器 A'], [MB, 'machine B', '机器 B']].forEach(([p, en, zh], j) => {
+    server(p.x, p.y - 40, 260, 120, {t: lt, alpha: k0, rows: 2, seed: j * 4});
+    text(en, p.x, p.y - 140, {size: 26, font: F.mono, weight: 700, color: C.sky, alpha: k0}); zt(zh, p.x, p.y - 112, {alpha: k0, size: 18});
+    const km = fi(lt, b[1] + .2 + j * .4) * last;
+    panel(p.x, p.y + 110, 300, 110, {alpha: km, fill: '#0E1628', edge: rgba(C.sky, .5), dash: [6, 5]});
+    text('memory · 内存', p.x - 135, p.y + 72, {size: 15, font: F.zh, color: C.sky, align: 'left', alpha: km});
+    text(j === 0 ? 'intermediate = [ (I,1) (am,1) … ]' : 'none of A\'s data · 没有 A 的数据', p.x, p.y + 118, {size: j ? 17 : 18, font: j ? F.zh : F.code, color: j ? C.dim : C.gold, alpha: km});
+  });
+  // B reaches for A's slice and can't
+  const kr = win(lt, b[1] + 1.4, b[2] + .4);
+  arrow({x: MB.x - 160, y: MB.y + 110}, {x: MA.x + 160, y: MA.y + 110}, C.red, {alpha: kr, lw: 3, dash: [10, 8], p: eo(ramp(lt, b[1] + 1.4, b[1] + 2.6))});
+  cross(960, MA.y + 110, 30, C.red, 8, kr * fi(lt, b[1] + 2.6));
+  text("B can't read A's memory · B 读不到 A 的内存", 960, MA.y + 175, {size: 20, font: F.zh, color: C.red, alpha: kr * fi(lt, b[1] + 2.8)});
+  // b2: the only link: the network
+  const kn = fi(lt, b[2] + .2);
+  line(MA.x + 132, MA.y - 40, MB.x - 132, MB.y - 40, C.violet, 4, kn * last);
+  text('network · 网络', 960, MA.y - 72, {size: 22, font: F.zh, weight: 600, color: C.violet, alpha: kn * last});
+  text('only messages · 只能发消息', 960, MA.y - 8, {size: 18, font: F.zh, color: C.dim, alpha: fi(lt, b[2] + 1) * last * fo(lt, b[3])});
+  // b3: a call that travels as a message
+  const kc = win(lt, b[3] + .2, b[5]);
+  text('Count("Frankenstein")', MA.x, MA.y - 205, {size: 22, font: F.code, color: C.gold, alpha: kc});
+  text('a call, sent as a message · 作为消息发出去的调用', 960, MA.y + 260, {size: 20, font: F.zh, color: C.dim, alpha: kc * fo(lt, b[4])});
+  packet({x: MA.x + 132, y: MA.y - 40}, {x: MB.x - 132, y: MB.y - 40}, ramp(lt, b[3] + .8, b[3] + 2.6), C.gold, {label: 'args · 参数', ls: 16});
+  text('runs Count · 执行', MB.x, MB.y - 205, {size: 20, font: F.zh, color: C.mint, alpha: win(lt, b[3] + 2.6, b[5])});
+  // b4: RPC = send the arguments, wait for a reply message
+  const kp = win(lt, b[4] + .2, b[6] - .2);
+  chip('RPC = remote procedure call · 远程过程调用', 960, MA.y + 260, C.violet, eback(ramp(lt, b[4] + .2, b[4] + .8)), {size: 22, alpha: kp});
+  packet({x: MB.x - 132, y: MB.y - 10}, {x: MA.x + 132, y: MA.y - 10}, ramp(lt, b[4] + 1.2, b[4] + 3), C.mint, {label: 'reply · 回复: 30', ls: 16});
+  tag('returned ✓', MA.x + 220, MA.y - 205, C.mint, {size: 18, alpha: win(lt, b[4] + 3, b[5])});
+  // b5: across a network the reply might never come
+  const k5 = win(lt, b[5] + .2, b[6] - .2);
+  packet({x: MA.x + 132, y: MA.y - 40}, {x: MB.x - 132, y: MB.y - 40}, ramp(lt, b[5] + .4, b[5] + 1.8), C.gold, {label: 'args', ls: 16});
+  packet({x: MB.x - 132, y: MB.y - 10}, {x: 960, y: MB.y - 10}, ramp(lt, b[5] + 2.2, b[5] + 3.2), C.mint, {label: 'reply', ls: 16});
+  burst(960, MB.y - 10, ramp(lt, b[5] + 3.2, b[5] + 3.9), C.violet);
+  const wt = clamp(lt - (b[5] + .4), 0, 99);
+  ringArc(MA.x + 200, MA.y - 150, 24, (wt % 2) / 2, C.violet, 5, k5);
+  text('waiting… · 还在等', MA.x + 200, MA.y - 108, {size: 16, font: F.zh, color: C.violet, alpha: k5});
+  note('one process: a call always returns', '单进程：调用总会返回', 960, 730, {alpha: k5 * fi(lt, b[5] + .6), size: 22, color: C.dim});
+  // b6: all four markers grow out of it
+  const k6 = fi(lt, b[6] + .2);
+  line(MA.x + 132, MA.y - 40, MB.x - 132, MB.y - 40, C.violet, 4, k6);
+  for (let i = 0; i < 4; i++) { const x0 = 690 + i * 180, x = 390 + i * 380, y0 = MA.y - 40, k = eo(ramp(lt, b[6] + .6 + i * .35, b[6] + 1.4 + i * .35));
+    line(x0, y0, lerp(x0, x, k), y0 + 250 * k, PC[i], 2.5, k6 * k, [6, 5]); marker(i, lerp(x0, x, k), y0 + 250 * k, 30, k6 * k, k);
+    text(PN[i][0], x, y0 + 320, {size: 20, weight: 600, color: C.ink, alpha: k6 * fi(lt, b[6] + 1.4 + i * .35)});
+    text(PN[i][1], x, y0 + 346, {size: 16, font: F.zh, color: C.dim, alpha: k6 * fi(lt, b[6] + 1.4 + i * .35)}); }
+};
+
+/* ---- 6. Split the work ---- */
+const CO = {x: 560, y: 500}, WK = [{x: 1000, y: 300}, {x: 1000, y: 500}, {x: 1000, y: 700}], RD = [{x: 1420, y: 400}, {x: 1420, y: 600}];
+function coord(x, y, a, o = {}) { server(x, y, 200, 130, {t: o.t || 0, alpha: a, edge: C.ink, led: C.ink, rows: 3, state: o.state, label: o.label ?? 'coordinator · 协调者', seed: 9}); }
+function splitStage(lt, b, a, o = {}) {
+  coord(CO.x, CO.y, a, {t: lt});
+  for (let i = 0; i < 8; i++) book(i, 170 + (i % 2) * 90, 250 + Math.floor(i / 2) * 140, a, {s: .75});
+  WK.forEach((p, j) => server(p.x, p.y, 180, 110, {t: lt, alpha: a, label: 'worker ' + (j + 1), seed: j}));
+  RD.forEach((p, j) => server(p.x, p.y, 160, 100, {t: lt, alpha: a * (o.reduce ?? 1), label: 'reduce ' + (j + 1), seed: 5 + j, edge: C.sky}));
+}
+const SMK = [{x: 1100, y: 448}, {x: 1738, y: 352}, {x: 780, y: 600}, {x: 668, y: 438}];
+SCN.split = (lt, b, d) => {
+  const mk = [0, 1, 2, 3].map(i => eback(ramp(lt, b[5] + .6 + i * .45, b[5] + 1.2 + i * .45)));
+  miniPage({B: 1, m: mk}, fi(lt, .2));
+  splitStage(lt, b, fi(lt, .2, .7), {reduce: fi(lt, b[3] + 3)});
+  // b1: the coordinator holds the to-do list; b2: workers ask, do, report
+  const k1 = win(lt, b[1] + .2, b[3]);
+  glow(CO.x, CO.y, 200, C.ink, .2 * k1);
+  tag('holds the to-do list, hands out tasks · 拿着任务清单、负责分活', CO.x + 40, 636, C.ink, {size: 17, alpha: k1});
+  const k2 = win(lt, b[2] + .2, b[3]);
+  WK.forEach(p => glow(p.x, p.y, 160, C.sky, .2 * k2));
+  tag('asks → does → reports, all by RPC · 要任务 → 做 → 回报，都用 RPC', 1000, 205, C.sky, {size: 17, alpha: k2});
+  packet({x: WK[0].x - 90, y: WK[0].y - 10}, {x: CO.x + 100, y: CO.y - 30}, ramp(lt, b[2] + .8, b[2] + 1.8), C.sky, {r: 7, label: 'ask', ls: 14});
+  packet({x: CO.x + 100, y: CO.y - 20}, {x: WK[0].x - 90, y: WK[0].y}, ramp(lt, b[2] + 2, b[2] + 3), C.gold, {r: 7, label: 'task', ls: 14});
+  packet({x: WK[0].x - 90, y: WK[0].y + 10}, {x: CO.x + 100, y: CO.y - 10}, ramp(lt, b[2] + 4, b[2] + 5), C.mint, {r: 7, label: 'done', ls: 14});
+  // b3: books go out as map tasks, then the pairs move on to the reducers
+  for (let i = 0; i < 8; i++) { const t0 = b[3] + .3 + i * .35; packet(CO, WK[i % 3], ramp(lt, t0, t0 + .9), C.gold, {bend: .12, label: i === FRANK ? 'Frankenstein' : null, ls: 16}); }
+  text('8 map tasks · 8 个 map 任务', CO.x, CO.y - 110, {size: 20, font: F.zh, color: C.gold, alpha: fi(lt, b[3] + .4)});
+  for (let i = 0; i < 6; i++) { const t0 = b[3] + 3.4 + i * .3; packet(WK[i % 3], RD[i % 2], ramp(lt, t0, t0 + .8), C.gold, {bend: -.1, r: 6}); }
+  RD.forEach((p, j) => { const ka = fi(lt, b[3] + 4.6); arrow({x: p.x + 90, y: p.y}, {x: p.x + 230, y: p.y}, C.gold, {alpha: ka}); fileIcon(p.x + 290, p.y, 56, 70, {color: C.gold, alpha: ka, rows: 3, seed: j}); });
+  // b4: the loop, now across machines
+  const k4 = win(lt, b[4] + .2, b[5] + .3);
+  panel(960, 790, 1000, 64, {alpha: k4, fill: '#0E1628'});
+  text('for _, filename := range os.Args[2:] {   // mrsequential.go:39', 960, 790, {size: 22, font: F.code, color: C.dim, alpha: k4});
+  // b5: every marker on the page is now possible, at its place on this picture
+  mk.forEach((k, i) => marker(i, SMK[i].x, SMK[i].y, 26, clamp(k, 0, 1), clamp(k, 0, 1)));
+  note('every marker on our page can now happen', '图上的每个标记现在都可能发生', 1480, 245, {alpha: fi(lt, b[5] + 2.6), size: 24, color: C.ink});
+};
+
+/* ---- 7. Marker 1: a worker dies ---- */
+const W3 = [{x: 560, y: 320}, {x: 960, y: 320}, {x: 1360, y: 320}];
+SCN.fail = (lt, B, d) => {
+  miniPage({B: .4, m: [1, 0, 0, 0]}, fi(lt, .2));
+  // beats: B3 toy clock, B4 dead = slow; the rest as before
+  const b = [B[0], B[1], B[2], B[3], B[5], B[6], B[7]];
+  const stageA = fo(lt, B[3] - .3, .6);
+  const dieT = b[0] + 1.8;
+  W3.forEach((p, j) => {
+    const dead = j === 1 && lt > dieT;
+    const prog = j === 1 ? Math.min(.5, ramp(lt, 0, dieT) * .5) : clamp(.3 + lt / 14, 0, 1);
+    server(p.x, p.y, 220, 140, {t: lt, alpha: fi(lt, .2) * stageA, state: dead ? 'dead' : 'ok', prog, label: 'worker ' + (j + 1), seed: j});
+    book([2, FRANK, 6][j], p.x, p.y - 140, fi(lt, .2) * stageA, {s: .6, label: false, color: j === 1 && dead ? C.red : C.gold});
+  });
+  burst(W3[1].x, W3[1].y, ramp(lt, dieT, dieT + .7));
+  marker(0, W3[1].x + 130, W3[1].y - 80, 24, fi(lt, dieT + .2) * stageA, 1);
+  text('power lost halfway · 数到一半断电', W3[1].x, W3[1].y + 120, {size: 20, font: F.zh, color: C.red, alpha: fi(lt, dieT + .3) * stageA * fo(lt, b[1] - .2)});
+  // b1: in one process, a crash takes everything with it
+  const k1 = win(lt, b[1] + .2, b[2]);
+  panel(960, 610, 760, 170, {alpha: k1, edge: rgba(C.sky, .6), dash: [8, 6]});
+  for (let i = 0; i < 8; i++) book(i, 680 + i * 80, 600, k1 * .5, {s: .5, label: false, color: C.dim});
+  cross(960, 610, 70, C.red, 10, k1);
+  note('one process: crash = nothing left half-done', '单进程：一崩全没，不存在“做了一半”', 960, 730, {alpha: k1, size: 22, color: C.dim});
+  // b2: the other seven books are fine
+  const k2 = fi(lt, b[2] + .2) * stageA;
+  for (let i = 0; i < 8; i++) { const x = 400 + i * 160; book(i, x, 600, k2 * (i === FRANK ? .9 : 1), {s: .62, color: i === FRANK ? C.red : C.gold, dash: i === FRANK ? [6, 5] : null});
+    if (i !== FRANK) check(x, 690 + 20, 16, C.mint, fi(lt, b[2] + .5 + i * .08) * stageA); else cross(x, 710, 14, C.red, 6, fi(lt, b[2] + .5) * stageA); }
+  // B3 (toy): the coordinator watches a clock; B4: dead and slow send the same thing
+  const k3 = win(lt, B[3] + .2, B[5]);
+  if (k3 > 0) {
+    toyTag(k3);
+    coord(800, 330, k3, {t: lt, label: 'coordinator · 协调者'});
+    const quiet = clamp(lt - (B[3] + .6), 0, B[4] - B[3]);
+    ringArc(1080, 330, 58, quiet / (B[4] - B[3]), C.coral, 8, k3);
+    text('no word from worker 2', 1260, 312, {size: 22, weight: 600, color: C.coral, align: 'left', alpha: k3});
+    text('worker 2 一直没消息', 1260, 344, {size: 17, font: F.zh, color: C.dim, align: 'left', alpha: k3});
+    text('?', 1080, 333, {size: 56, font: F.disp, weight: 700, color: C.red, alpha: k3 * fi(lt, B[3] + 2)});
+    const kp = fi(lt, B[4] + .2) * k3;
+    [['dead', '死了', C.red], ['slow', '只是慢', C.coral]].forEach(([en, zh, c], j) => {
+      const x = 640 + j * 640; panel(x, 620, 480, 190, {alpha: kp});
+      text('worker 2 · ' + en, x, 560, {size: 24, font: F.mono, weight: 700, color: c, alpha: kp}); zt(zh, x, 590, {alpha: kp});
+      line(x - 200, 650, x + 200, 650, C.dim, 3, kp); text('messages: none · 没有任何消息', x, 690, {size: 18, font: F.zh, color: C.dim, alpha: kp});
+    });
+    text('=', 960, 620, {size: 80, font: F.disp, weight: 700, color: C.ink, alpha: fi(lt, B[4] + 1.4) * kp});
+  }
+  // b4–b5: crash.go does both on purpose
+  const k4 = fi(lt, b[4] + .2);
+  srcView(120, 190, 860, 'crash', {alpha: k4, fn: 'maybeCrash()', hl: n => lt < b[5] ? inR(n, 22, 22) : (inR(n, 23, 25) * 1 + inR(n, 26, 30)),
+    hc: n => n <= 25 ? C.red : C.coral,
+    mark: n => n === 22 ? ['rr: random 0..999', C.gold, fi(lt, b[4] + .8)] : n === 23 ? ['< 330: exit', C.red, fi(lt, b[5] + .3)] : n === 26 ? ['< 660: stall', C.coral, fi(lt, b[5] + 1)] : n === 28 ? ['up to 10 s', C.coral, fi(lt, b[5] + 1.5)] : null});
+  const kb = fi(lt, b[5] + .3), segs = [[.33, C.red, 'exit', '退出'], [.33, C.coral, 'stall ≤ 10 s', '卡住'], [.34, C.mint, 'normal', '正常']];
+  let x = 1080;
+  segs.forEach(([f, c, en, zh], j) => { const w = 720 * f * eo(ramp(lt, b[5] + .3 + j * .5, b[5] + .9 + j * .5)); ctx.save(); ctx.globalAlpha *= kb; rr(x, 420, Math.max(0, w - 6), 70, 8); ctx.fillStyle = rgba(c, .8); ctx.fill(); ctx.restore();
+    text(en, x + 720 * f / 2, 530, {size: 22, weight: 600, color: c, alpha: kb * fi(lt, b[5] + .6 + j * .5)}); zt(zh, x + 720 * f / 2, 560, {alpha: kb * fi(lt, b[5] + .6 + j * .5), size: 18}); x += 720 * f; });
+  text('each Map / Reduce call · 每次调用', 1440, 380, {size: 20, font: F.zh, color: C.dim, alpha: kb});
+  epTag(3, 1440, 680, fi(lt, b[6] + .2), C.red);
+  note('how the coordinator recovers', '协调者怎么恢复', 1440, 740, {alpha: fi(lt, b[6] + .4), size: 24});
+};
+
+/* ---- 8. Marker 2: two writers, one file ---- */
+SCN.conc = (lt, B, d) => {
+  miniPage({B: .4, m: [.35, 1, 0, 0]}, fi(lt, .2));
+  // beats: B4 "that's concurrency"; B5 threads; B6 the episodes that teach it
+  const b = [B[0], B[1], B[2], B[3], B[5], B[6]];
+  const stA = fo(lt, b[4] - .3, .6);
+  const w2 = {x: 520, y: 330}, w3 = {x: 1400, y: 330}, fileP = {x: 960, y: 610};
+  coord(960, 260, fi(lt, .2) * stA * fo(lt, b[1]), {t: lt, label: 'coordinator · 协调者'});
+  server(w2.x, w2.y, 220, 140, {t: lt, alpha: fi(lt, .2) * stA, state: lt < b[1] ? 'dead' : 'hot', prog: lt < b[1] ? .5 : .5 + .5 * ramp(lt, b[1], b[2] + 1), label: 'worker 2', seed: 1});
+  text(lt < b[1] ? 'presumed dead · 以为死了' : 'only slow · 只是慢', w2.x, w2.y + 120, {size: 20, font: F.zh, color: lt < b[1] ? C.red : C.coral, alpha: fi(lt, .4) * stA});
+  server(w3.x, w3.y, 220, 140, {t: lt, alpha: fi(lt, .6) * stA, prog: ramp(lt, b[0] + 2, b[2] + 1), label: 'worker 3', seed: 2});
+  packet({x: 1060, y: 260}, {x: w3.x - 110, y: w3.y}, ramp(lt, b[0] + .6, b[0] + 1.8), C.gold, {label: 'Frankenstein', ls: 16, bend: -.1});
+  // b1: both counting the same book
+  book(FRANK, w2.x, w2.y - 140, fi(lt, b[1]) * stA, {s: .6, label: false});
+  book(FRANK, w3.x, w3.y - 140, fi(lt, b[0] + 1.8) * stA, {s: .6, label: false});
+  // b2: both write the same file at the same time
+  const k2 = fi(lt, b[2]) * stA;
+  fileIcon(fileP.x, fileP.y, 150, 190, {color: C.coral, alpha: k2, glow: .3});
+  marker(1, fileP.x + 100, fileP.y - 110, 24, k2, 1);
+  text('same output file · 同一个输出文件', fileP.x, fileP.y + 125, {size: 18, font: F.zh, color: C.coral, alpha: k2});
+  for (let i = 0; i < 6; i++) { const t0 = b[2] + .3 + i * .4, from = i % 2 ? w3 : w2; packet({x: from.x + (i % 2 ? -110 : 110), y: from.y + 40}, {x: fileP.x + (i % 2 ? 40 : -40), y: fileP.y - 40}, ramp(lt, t0, t0 + .9), i % 2 ? C.sky : C.coral, {r: 7}); }
+  for (let r = 0; r < 6; r++) { const ka = k2 * fi(lt, b[2] + 1.2 + r * .4); ctx.save(); ctx.globalAlpha *= ka; rr(fileP.x - 52, fileP.y - 66 + r * 24, 100 * (.6 + .4 * rnd(r)), 12, 3); ctx.fillStyle = r % 2 ? C.sky : C.coral; ctx.fill(); ctx.restore(); }
+  // b3: what a reader might see
+  const k3 = fi(lt, b[3] + .2) * stA;
+  [['Frankenstein 30', C.mint, '✓ real count'], ['Frankenstein 60', C.coral, 'both, added'], ['Frankenstein 17', C.coral, 'half of each']].forEach(([s, c, n], j) => {
+    const ka = k3 * fi(lt, b[3] + .4 + j * .5); tag(s, 1560, 560 + j * 80, c, {size: 22, alpha: ka}); text(n, 1760, 560 + j * 80, {size: 16, color: C.dim, align: 'left', alpha: ka});
+  });
+  text('only 30 is right · 只有 30 是对的', 360, 640, {size: 22, font: F.zh, color: C.dim, alpha: k3});
+  // B4: the word for it
+  chip('concurrency: two things at once, same data · 并发：同时进行，碰同一份数据', 960, 790, C.coral, eback(ramp(lt, B[4] + .2, B[4] + .8)), {size: 20, alpha: fi(lt, B[4] + .2) * stA});
+  // b4: the same thing between threads in one machine
+  const k4 = win(lt, b[4] + .2);
+  if (k4 > 0) {
+    panel(960, 500, 1100, 480, {alpha: k4, edge: rgba(C.coral, .6)});
+    text('one machine, two goroutines · 一台机器，两个 goroutine', 960, 300, {size: 24, font: F.zh, color: C.coral, alpha: k4});
+    [0, 1].forEach(j => { const x = 640 + j * 640; text('goroutine ' + (j + 1), x, 380, {size: 22, font: F.mono, color: C.sky, alpha: k4});
+      for (let s = 0; s < 3; s++) { const ka = k4 * fi(lt, b[4] + .6 + s * .35 + j * .15); rr(x - 120, 410 + s * 46, 240, 34, 6); ctx.save(); ctx.globalAlpha *= ka; ctx.fillStyle = rgba(C.sky, .25); ctx.fill(); ctx.restore();
+        text(['read count', 'count + 1', 'write count'][s], x, 427 + s * 46, {size: 18, font: F.code, alpha: ka}); } });
+    cylinder(960, 470, 120, 90, {color: C.coral, alpha: k4, inner: 'count', label: 'shared variable · 共享变量'});
+    tag('go test -race  → reports the race · 报告数据竞争', 960, 670, C.coral, {size: 20, alpha: k4 * fi(lt, b[4] + 1.6)});
+    epTag(3, 760, 760, fi(lt, b[5] + .2), C.coral); text('atomic rename · 原子改名', 760, 800, {size: 18, font: F.zh, color: C.dim, alpha: fi(lt, b[5] + .3)});
+    epTag(4, 1160, 760, fi(lt, b[5] + .6), C.coral); text('locks and races · 锁和竞争', 1160, 800, {size: 18, font: F.zh, color: C.dim, alpha: fi(lt, b[5] + .7)});
+  }
+};
+
+/* ---- 9. Marker 3: did it arrive? ---- */
+SCN.net = (lt, b, d) => {
+  miniPage({B: .4, m: [.35, .35, 1, 0]}, fi(lt, .2));
+  const cl = {x: 330, y: 300}, sv = {x: 1590, y: 300}, top = fo(lt, b[6] - .2, .5);
+  const k0 = fi(lt, .2) * top;
+  server(cl.x, cl.y, 200, 120, {t: lt, alpha: k0, label: 'caller · 调用方', seed: 1});
+  server(sv.x, sv.y, 200, 120, {t: lt, alpha: k0, label: 'server · 服务器', seed: 3, state: lt > b[4] + 1 && lt < b[4] + 2.2 ? 'hot' : 'ok'});
+  tag('RPC', 960, 205, C.violet, {size: 18, alpha: win(lt, .4, b[1]) * top});
+  // b1: the fake network in the middle
+  const k1 = fi(lt, b[1]) * top;
+  panel(960, 300, 560, 150, {alpha: k1, edge: rgba(C.violet, .7), dash: [10, 8], fill: rgba(C.violet, .06)});
+  text('labrpc', 960, 280, {size: 34, font: F.code, weight: 700, color: C.violet, alpha: k1});
+  text('a fake network inside one process · 进程内的假网络', 960, 325, {size: 18, font: F.zh, color: C.dim, alpha: k1});
+  line(cl.x + 100, 300, 680, 300, C.faint, 2, k1, [6, 6]); line(1240, 300, sv.x - 100, 300, C.faint, 2, k1, [6, 6]);
+  // b2: a normal call
+  const t2 = b[2] + .4;
+  packet({x: cl.x + 100, y: 270}, {x: sv.x - 100, y: 270}, ramp(lt, t2, t2 + 1.4), C.gold, {label: 'request', ls: 16});
+  packet({x: sv.x - 100, y: 330}, {x: cl.x + 100, y: 330}, ramp(lt, t2 + 1.6, t2 + 3), C.mint, {label: 'reply', ls: 16});
+  tag('true', cl.x, 205, C.mint, {size: 22, alpha: win(lt, t2 + 3, b[3]) * top});
+  // b3: request dropped
+  const t3 = b[3] + .5;
+  packet({x: cl.x + 100, y: 270}, {x: 960, y: 270}, ramp(lt, t3, t3 + .8), C.gold, {label: 'request', ls: 16});
+  burst(960, 270, ramp(lt, t3 + .8, t3 + 1.5), C.violet);
+  text('handler never ran · 处理函数没执行', 960, 200, {size: 18, font: F.zh, color: C.violet, alpha: win(lt, t3 + .9, b[4]) * top});
+  // b4: reply dropped, after the handler ran
+  const t4 = b[4] + .3;
+  packet({x: cl.x + 100, y: 270}, {x: sv.x - 100, y: 270}, ramp(lt, t4, t4 + 1), C.gold, {label: 'request', ls: 16});
+  text('ran ✓', sv.x, sv.y - 100, {size: 22, font: F.mono, weight: 700, color: C.mint, alpha: win(lt, t4 + 1, b[6]) * top});
+  packet({x: sv.x - 100, y: 330}, {x: 960, y: 330}, ramp(lt, t4 + 2.2, t4 + 3), C.mint, {label: 'reply', ls: 16});
+  burst(960, 330, ramp(lt, t4 + 3, t4 + 3.7), C.violet);
+  // b5: both cases → false
+  const k5 = fi(lt, b[5] + .2) * top;
+  [['lost request', '丢了请求', 760], ['lost reply', '丢了回复', 1160]].forEach(([en, zh, x], j) => {
+    const ka = k5 * fi(lt, b[5] + .2 + j * .4);
+    text(en + ' · ' + zh + '  →  false', x, 410, {size: 18, font: F.zh, color: C.violet, alpha: ka});
+  });
+  tag('false', cl.x, 205, C.violet, {size: 24, alpha: k5});
+  marker(2, 960 + 300, 240, 22, fi(lt, b[3] + 1.4) * top, 1);
+  // the code under the picture
+  const Y = 456;
+  srcView(80, Y, 860, 'call', {alpha: win(lt, b[2] + .2, b[3] + .2) * top, fn: 'Call()', hl: n => inR(n, 112, 113),
+    mark: n => n === 113 ? ['false = no reply came back', C.gold, fi(lt, b[2] + 1)] : null});
+  srcView(80, Y, 860, 'dropreq', {alpha: win(lt, b[3] + .2) * top, fn: 'processReq()', lh: 30, size: 16.5, hl: n => inR(n, 302, 305) * (lt < b[5] ? 1 : .6), hc: () => C.violet,
+    mark: n => n === 302 ? ['< 100 of 1000 = 10%', C.violet, fi(lt, b[3] + .8)] : n === 304 ? ['Call returns false', C.violet, fi(lt, b[3] + 1.4)] : null});
+  tag('processReq: delivers each request · 投递每个请求', 510, 434, C.violet, {size: 16, alpha: win(lt, b[3] + .6, b[5]) * top});
+  srcView(980, Y, 860, 'droprep', {alpha: fi(lt, b[4] + .2) * top, fn: 'processReq()', lh: 30, size: 16.5, hl: n => inR(n, 349, 351) * (lt < b[5] ? 1 : .6), hc: () => C.violet,
+    mark: n => n === 344 ? ['the handler already ran', C.mint, fi(lt, b[4] + 1.2)] : n === 349 ? ['another 10%', C.violet, fi(lt, b[4] + 2.6)] : n === 351 ? ['false again', C.violet, fi(lt, b[4] + 3)] : null});
+  // b6: the question; b7: the answer
+  const q = fi(lt, b[6] + .2, .6);
+  tag('false', 960, 320, C.violet, {size: 40, alpha: q});
+  text('Did the server do the work?', 960, 450, {size: 60, font: F.disp, weight: 700, alpha: q * fo(lt, b[7] - .1)});
+  text('服务器到底做了没有？', 960, 525, {size: 32, font: F.zh, color: C.dim, alpha: q * fo(lt, b[7] - .1)});
+  const k7 = fi(lt, b[7] + .1, .6);
+  text("You can't tell.", 960, 450, {size: 72, font: F.disp, weight: 700, color: C.violet, alpha: k7});
+  text('你分不出来。', 960, 530, {size: 34, font: F.zh, color: C.dim, alpha: k7});
+  epTag(5, 840, 640, fi(lt, b[7] + .8), C.violet); epTag(8, 1080, 640, fi(lt, b[7] + 1), C.violet);
+  text('labrpc · ErrMaybe', 960, 700, {size: 20, font: F.code, color: C.dim, alpha: fi(lt, b[7] + 1.2)});
+};
+
+/* ---- 10. So far, on the page ---- */
+SCN.sofar = (lt, b, d) => {
+  heading(fi(lt, .2));
+  const c = camAt(lt, [[0, CAM.whole], [b[0] + 1.6, CAM.A], [b[1] - .2, CAM.all4], [b[2] - .2, CAM.B], [b[3] - .2, CAM.m34]]);
+  const m4 = .3 + .7 * fi(lt, b[3] + .3);
+  pageView(c, fi(lt, .2, .6), {A: 1, aHot: win(lt, b[0] + 1.6, b[1]), B: 1, bHot: win(lt, b[1], b[3]), m: [1, 1, 1, m4], mh: [0, 1, 2].map(i => win(lt, b[1] + .3 + i * .6, b[3])).concat([win(lt, b[3] + .3)]),
+    L: .4, root: fi(lt, b[2] + .4, .8), alpha: 1});
+};
+
+/* ---- 11. Marker 4: the coordinator dies (toy: three notebooks) ---- */
+function taskTable(x, y, s, a, done, o = {}) { // the coordinator's record: which of the eight tasks are done
+  if (a <= 0) return;
+  panel(x, y, 190 * s, 290 * s, {alpha: a, fill: '#0E1628', edge: o.edge || C.line});
+  for (let i = 0; i < 8; i++) { const yy = y - 120 * s + i * 34 * s, dd = done[i];
+    if (o.hot === i) { ctx.save(); ctx.globalAlpha *= a; rr(x - 90 * s, yy - 14 * s, 180 * s, 28 * s, 5); ctx.fillStyle = rgba(C.mint, .16); ctx.fill(); ctx.restore(); }
+    text('task ' + i, x - 80 * s, yy, {size: 15 * s, font: F.mono, color: o.hot === i ? C.ink : C.dim, align: 'left', alpha: a});
+    if (dd === 1) check(x + 70 * s, yy, 9 * s, C.mint, a); else if (dd === 2) text('?', x + 70 * s, yy, {size: 20 * s, font: F.mono, weight: 700, color: C.red, alpha: a}); else text('·', x + 70 * s, yy, {size: 20 * s, color: C.faint, alpha: a}); }
+}
+const DONE = [1, 1, 0, 1, 1, 0, 0, 0];
+SCN.agree = (lt, b, d) => {
+  miniPage({B: .4, m: [.35, .35, .35, 1]}, fi(lt, .2));
+  const k0 = fi(lt, .2) * fo(lt, b[1] - .2);
+  coord(700, 460, k0, {t: lt, label: 'the only coordinator · 唯一的协调者'}); taskTable(1180, 460, 1.2, k0, DONE);
+  marker(3, 820, 380, 24, k0, 1);
+  text('which tasks are done · 哪些任务做完了', 1180, 260, {size: 18, font: F.zh, color: C.dim, alpha: k0});
+  // b1: three copies, each a replica; b2 (toy): one notebook says task 6 is done
+  const R = [{x: 480, y: 420}, {x: 960, y: 420}, {x: 1440, y: 420}];
+  const k1 = fi(lt, b[1] + .2), cut = lt > b[4] + .2, inCharge = j => fi(lt, b[5] + .6 + (j ? .5 : 0));
+  tag('replica = one copy of the record · 副本：记录的一份拷贝', 960, 215, C.mint, {size: 18, alpha: win(lt, b[1] + .6, b[2])});
+  toyTag(fi(lt, b[2] + .2));
+  R.forEach((p, j) => {
+    server(p.x - 90, p.y, 130, 100, {t: lt, alpha: k1, label: ['A', 'B', 'C'][j], seed: j, edge: C.ink, led: C.ink});
+    const dd = DONE.slice(); if (j === 0 && lt > b[2] + .8) dd[6] = 1;
+    taskTable(p.x + 80, p.y, .8, k1, dd, {hot: lt > b[2] + .5 ? 6 : -1, edge: lt > b[2] + .5 && lt < b[4] ? rgba(C.mint, .6) : C.line});
+  });
+  text('task 6: done? · 任务 6 做完了吗？', 960, 640, {size: 22, font: F.zh, color: C.mint, alpha: win(lt, b[2] + 1, b[3])});
+  text('?', 960, 300, {size: 64, font: F.disp, weight: 700, color: C.red, alpha: win(lt, b[2] + 1.6, b[3] + .4)});
+  // b3: nobody can say: the copies must agree on every entry, while machines crash and messages get lost
+  const k3 = win(lt, b[3] + .2, b[4] + .2);
+  text('every entry must match · 每一条都要一致', 960, 640, {size: 24, font: F.zh, weight: 600, color: C.mint, alpha: k3});
+  packet({x: R[0].x + 80, y: R[0].y + 150}, {x: R[1].x + 80, y: R[1].y + 150}, ramp(lt, b[3] + 1, b[3] + 2), C.mint, {r: 7, label: 'task 6 done', ls: 14});
+  burst(R[0].x + 320, R[0].y + 150, ramp(lt, b[3] + 2, b[3] + 2.7), C.violet);
+  // b4: cut the network between notebook one and the other two; both sides keep working
+  const k4 = fi(lt, b[4] + .2);
+  line(720, 230, 720, 640, C.red, 4, k4, [14, 10]);
+  text('network cut · 网络断开', 720, 670, {size: 20, font: F.zh, color: C.red, alpha: k4});
+  text('still working · 还在工作', 480, 700, {size: 17, font: F.zh, color: C.dim, alpha: win(lt, b[4] + 1, b[5])});
+  text('still working · 还在工作', 1200, 700, {size: 17, font: F.zh, color: C.dim, alpha: win(lt, b[4] + 1.3, b[5])});
+  // b5: both sides think they're in charge: the record splits
+  [R[0], R[1]].forEach((p, j) => { const ka = inCharge(j) * fo(lt, b[6]); text('♛', p.x - 90, p.y - 90, {size: 44, color: C.gold, alpha: ka}); text("I'm in charge", p.x - 90, p.y - 140, {size: 16, font: F.mono, color: C.gold, alpha: ka}); });
+  cross(960, 760, 22, C.red, 7, fi(lt, b[5] + 2) * fo(lt, b[6]));
+  text('two in charge: the record splits in two · 两边都说了算：记录分裂成两份', 960, 800, {size: 20, font: F.zh, color: C.red, alpha: fi(lt, b[5] + 2) * fo(lt, b[6])});
+  // b6: consensus
+  const k6 = fi(lt, b[6] + .2);
+  if (k6 > 0) { ctx.save(); ctx.globalAlpha = k6 * .85; ctx.fillStyle = C.bg; ctx.fillRect(0, 170, W, 670); ctx.restore(); }
+  text('Consensus', 960, 420, {size: 84, font: F.disp, weight: 700, color: C.mint, alpha: k6});
+  text('共识：让副本对每一条都达成一致', 960, 500, {size: 30, font: F.zh, color: C.dim, alpha: k6});
+  tag('Paxos → ep13–14 · 第 13–14 集', 760, 600, C.mint, {size: 22, alpha: fi(lt, b[6] + .8)});
+  tag('Raft → ep15+ · 第 15 集起', 1180, 600, C.mint, {size: 22, alpha: fi(lt, b[6] + 1.2)});
+  void cut;
+};
+
+/* ---- 12. Five labs, on the page ---- */
+SCN.labs = (lt, b, d) => {
+  heading(fi(lt, .2));
+  const cur = b.reduce((c, t, i) => lt >= t ? i : c, 0);
+  const lh = [0, 1, 2, 3, 4].map(i => i === cur ? fi(lt, b[i] + .2) : 0);
+  const link = [0, 1, 2, 3, 4].map(i => i === cur ? fi(lt, b[i] + .5, .7) : 0);
+  const m = [0, 1, 2, 3].map(t => LABS[cur][3].includes(t) ? fi(lt, b[cur] + .5) : 0);
+  pageView(CAM.whole, fi(lt, .2, .6), {A: 1, aHot: cur === 4 ? fi(lt, b[4] + .6) : 0, B: 1, m: [1, 1, 1, 1], mh: m, L: 1, lh, link, alpha: 1});
+};
+
+/* ---- 13. Finding your way in src/ ---- */
+const GIVEN = [['labrpc/', 'the fake network', '假网络'], ['labgob/', 'encoding for RPC', 'RPC 编码'], ['tester1/', 'runs, crashes, checks your servers', '启动、弄崩、检查'], ['mrapps/', 'MapReduce plugins (wc.go …)', 'MapReduce 插件'], ['main/', 'the books, the launchers', '书和启动程序'], ['kvtest1/  models1/', 'the linearizability checker', '一致性检查器'], ['raftapi/', 'the interface your Raft implements', 'Raft 接口']];
+SCN.src = (lt, b, d) => {
+  miniPage({L: 1}, fi(lt, .2));
+  const kt = fi(lt, .2);
+  text('src/', 100, 205, {size: 34, font: F.code, weight: 700, color: C.sky, align: 'left', alpha: kt});
+  text('given · 发给你的，不用改', 200, 205, {size: 18, font: F.zh, color: C.dim, align: 'left', alpha: kt});
+  GIVEN.forEach(([f, en, zh], i) => {
+    const y = 270 + i * 72, hot = (i === 0 || i === 2) ? win(lt, b[1] + .2, b[2]) : (i === 3 || i === 4) ? win(lt, b[2] + .2, b[3]) : 0, ka = kt * fi(lt, .3 + i * .1) * (1 - .5 * fi(lt, b[4]));
+    if (hot > 0) { ctx.save(); ctx.globalAlpha *= hot; rr(90, y - 30, 780, 62, 10); ctx.fillStyle = rgba(C.sky, .12); ctx.fill(); ctx.restore(); }
+    text(f, 120, y - 6, {size: 24, font: F.code, weight: 700, color: C.sky, align: 'left', alpha: ka});
+    text(en, 420, y - 10, {size: 20, color: hot > 0 ? C.ink : C.dim, align: 'left', alpha: ka});
+    text(zh, 420, y + 16, {size: 15, font: F.zh, color: C.dim, align: 'left', alpha: ka});
+  });
+  // b3: the ten files you write
+  const k3 = win(lt, b[3] + .2, b[4]);
+  text('yours · 你要写的', 1000, 205, {size: 22, font: F.zh, color: C.gold, align: 'left', alpha: k3});
+  D.yours.forEach((f, i) => { const ka = k3 * fi(lt, b[3] + .4 + i * .12); text(f, 1000, 260 + i * 50, {size: 22, font: F.code, color: f.startsWith('mr/') ? C.gold : C.ink, align: 'left', alpha: ka});
+    text(['Lab 4', 'Lab 4', 'Lab 2', 'Lab 2', 'Lab 1', 'Lab 1', 'Lab 3', 'Lab 5', 'Lab 5', 'Lab 5'][i] || '', 1780, 260 + i * 50, {size: 18, font: F.mono, color: C.dim, align: 'right', alpha: ka}); });
+  text(`${D.yours.length} files with comments like "// Your code here"`, 1000, 780, {size: 20, font: F.mono, color: C.dim, align: 'left', alpha: k3});
+  // b4: MakeCoordinator today; b5: make mr
+  srcView(900, 200, 980, 'mkcoord', {alpha: win(lt, b[4] + .1, b[5]), fn: 'MakeCoordinator()', size: 17, hl: n => inR(n, 55, 55) + inR(n, 58, 58),
+    mark: n => n === 55 ? ['yours: hand out tasks …', C.gold, fi(lt, b[4] + .6)] : n === 58 ? ['given: start the RPC server', C.sky, fi(lt, b[4] + 1.2)] : null});
+  srcView(900, 190, 980, 'make', {alpha: fi(lt, b[5] + .1), fn: 'mr', size: 15.5, lh: 28, hl: n => inR(n, 47, 49) * fi(lt, b[5] + .4) + inR(n, 50, 57) * fi(lt, b[5] + 1) + inR(n, 44, 44) * fi(lt, b[5] + 1.6), hc: n => n === 44 ? C.gold : C.sky,
+    mark: n => n === 48 ? ['launchers', C.sky, fi(lt, b[5] + .6)] : n === 53 ? ['8 plugins', C.sky, fi(lt, b[5] + 1)] : n === 44 ? ['tests, with -race', C.gold, fi(lt, b[5] + 1.8)] : null});
+  tag('$ cd src && make mr', 1390, 735, C.mint, {size: 22, alpha: fi(lt, b[5] + 2.2)});
+};
+
+/* ---- 14. Recap, on the page: each takeaway lights its part ---- */
+SCN.recap = (lt, b, d) => {
+  heading(fi(lt, .2));
+  const c = camAt(lt, [[0, CAM.whole], [b[0] + .2, CAM.A], [b[1] - .2, CAM.all4], [b[2] - .2, CAM.m34], [b[2] + 5.5, CAM.whole]]);
+  const t1 = win(lt, b[0] + .2, b[1]), t2 = win(lt, b[1] + .2, b[2]), t3 = fi(lt, b[2] + .2);
+  pageView(c, fi(lt, .2, .6), {A: 1, aHot: t1, B: 1, bHot: t2, m: [1, 1, 1, 1], mh: [t2, t2, Math.max(t2, t3), t2], L: 1, alpha: 1});
+  void t3;
+};
+
+/* ---- 15. Your turn ---- */
+SCN.turn = (lt, b, d) => {
+  text('Your Turn', 960, 200, {size: 56, font: F.disp, weight: 700, alpha: fi(lt, .2)});
+  text('轮到你', 960, 255, {size: 26, font: F.zh, color: C.dim, alpha: fi(lt, .2)});
+  const cmd = ['$ cd src/main', '$ go build -buildmode=plugin ../mrapps/wc.go', '$ go run mrsequential.go wc.so pg*.txt', '$ grep \'^Sherlock \' mr-out-0'];
+  panel(960, 440, 1100, 250, {alpha: fi(lt, b[0] + .2), fill: '#0E1628'});
+  cmd.forEach((c, i) => text(c, 450, 360 + i * 52, {size: 26, font: F.code, color: i === 3 ? C.gold : C.mint, align: 'left', alpha: fi(lt, b[0] + .4 + i * .4) * (i === 3 ? fi(lt, b[1]) : 1)}));
+  const q = fi(lt, b[1] + .3) * fo(lt, b[2] - .1);
+  text('"Sherlock" — how many times?', 960, 660, {size: 44, font: F.disp, weight: 700, alpha: q});
+  text('"Sherlock" 出现了几次？', 960, 720, {size: 26, font: F.zh, color: C.dim, alpha: q});
+  const k2 = fi(lt, b[2] + .1);
+  text('Sherlock ' + D.sherlock, 960, 660, {size: 64, font: F.code, weight: 700, color: C.gold, alpha: k2});
+  text('next: the MapReduce model · 下一集：MapReduce 模型', 960, 740, {size: 22, font: F.zh, color: C.dim, alpha: fi(lt, b[2] + 1.5)});
+};
+
+// filled by build.py with every Chinese character in this file (so the font subset loads them)
+const EXTRA_ZH = '、。一上下不丢两个中为么也书了争事互五些享什从以们件任份会位住何作你例值假做全八共具内写几出函分切到副加务动半协单卡原去参发变口句只可台合同名吗启告和哪唯器四回图在型处复多大失子存它完实对就崩工布带常并序底度开弄式录很得必怎性总恢息慢成执扩投报拷拿按据排接推插改放数文断方时是最有服本机条来果查标检模次止正死每求没活派测消清点片玩现理生用电的目直相着知码碰秒程竞笔符第等算系约结给络统编网者而能自致行裂装要规计让记论识词话说请读调贝负责起轮载输边达过运返还这进远退递通速道那部都里量锁键隔难集零须题鿿，：？';
+/* =========================================================
+   Chrome: chapter title, progress, subtitles
+   ========================================================= */
+var NOSUBS = location.search.includes('nosubs');
+function chrome(t, si, s, lt){
+  const n = TL.scenes.length;
+  if (si > 0 && si < n-1){
+    const a = eo(ramp(lt, .2, .8)) * (1 - ramp(lt, s.dur - .5, s.dur - .1));
+    text(String(si).padStart(2,'0'), 80, 88, {size:26, font:F.mono, weight:700, color:C.gold, align:'left', alpha:a});
+    text(s.title, 130, 88, {size:40, font:F.disp, weight:700, align:'left', alpha:a});
+    text(s.zh, 132, 132, {size:22, font:F.zh, weight:500, color:C.dim, align:'left', alpha:a});
+  }
+  // progress ticks
+  const bw = 34, gap = 8, x0 = W - 80 - n*bw - (n-1)*gap;
+  for (let i=0;i<n;i++){ const x = x0 + i*(bw+gap); rr(x, 84, bw, 5, 2.5); ctx.fillStyle = rgba(C.faint,.9); ctx.fill();
+    const f = i < si ? 1 : i > si ? 0 : clamp(lt/s.dur,0,1); if (f > 0){ rr(x, 84, bw*f, 5, 2.5); ctx.fillStyle = C.gold; ctx.fill(); } }
+  // subtitles (off with ?nosubs: slides.mjs puts the narration beside each slide instead)
+  // Chinese has no spaces to wrap at: break before maxW, preferring just after a ，。：；
+  function wrapZh(s, maxW){ const out = []; let cur = '';
+    for (const ch of s){ if (ctx.measureText(cur + ch).width > maxW && cur){ const k = Math.max(...['，','。','：','；'].map(p => cur.lastIndexOf(p)));
+        if (k > cur.length - 24 && k >= 0){ out.push(cur.slice(0, k + 1)); cur = cur.slice(k + 1).trimStart() + ch; } else { out.push(cur); cur = ch; } } else cur += ch; }
+    if (cur) out.push(cur); return out; }
+  const bt = !NOSUBS && s.beats.find(bb => lt >= bb.start - .05 && lt < bb.start + bb.dur + .35);
+  if (bt){
+    const a = ramp(lt, bt.start - .05, bt.start + .12) * (1 - ramp(lt, bt.start + bt.dur + .2, bt.start + bt.dur + .35));
+    const g = ctx.createLinearGradient(0, 840, 0, H); g.addColorStop(0,'rgba(7,11,22,0)'); g.addColorStop(1,'rgba(7,11,22,.85)'); ctx.fillStyle = g; ctx.fillRect(0, 840, W, H-840);
+    ctx.font = `500 38px ${F.sans}`; const lines = wrapLines(bt.text, 1500);
+    ctx.font = `500 27px ${F.zh}`; const zl = wrapZh(bt.zh, 1700);
+    const zy = 1030 - (zl.length-1)*36, ly = zy - 52 - (lines.length-1)*50;
+    lines.forEach((l,i) => text(l, 960, ly + i*50, {size:38, weight:500, alpha:a, shadow:'rgba(0,0,0,.8)'}));
+    zl.forEach((l,i) => text(l, 960, zy + i*36, {size:27, font:F.zh, weight:500, color:'#B9C1D3', alpha:a}));
+  }
+}
+
+/* =========================================================
+   render(t)
+   ========================================================= */
+var render = function(t){
+  ctx.setTransform(1,0,0,1,0,0);
+  background(t);
+  const sc = TL.scenes; let si = sc.findIndex(s => t >= s.start && t < s.start + s.dur); if (si < 0) si = t < 0 ? 0 : sc.length-1;
+  const s = sc[si], lt = t - s.start, b = s.beats.map(x => x.start);
+  const a = Math.min(ramp(lt, 0, .5), 1 - ramp(lt, s.dur - .45, s.dur));
+  ctx.save(); ctx.globalAlpha = a;
+  const z = 1 + .025*(1 - eo(ramp(lt, 0, 1.6))); ctx.translate(960,540); ctx.scale(z,z); ctx.translate(-960,-540);
+  SCN[s.id](lt, b, s.dur);
+  ctx.restore();
+  chrome(t, si, s, lt);
+  if (si === sc.length-1){ const k = ramp(lt, s.dur - 1.2, s.dur); if (k > 0){ ctx.fillStyle = `rgba(0,0,0,${k})`; ctx.fillRect(0,0,W,H); } }
+};
+
+
+var ready = (async () => {
+  const zh = TL.scenes.map(s => s.zh + s.beats.map(b => b.zh).join('')).join('');
+  try { await Promise.all([
+    document.fonts.load(`700 150px ${F.disp}`), document.fonts.load(`600 40px ${F.disp}`),
+    document.fonts.load(`500 38px ${F.sans}`), document.fonts.load(`600 38px ${F.sans}`),
+    document.fonts.load(`700 24px ${F.mono}`), document.fonts.load(`500 24px ${F.mono}`),
+    document.fonts.load(`500 27px ${F.zh}`, zh + EXTRA_ZH)]); await document.fonts.ready; } catch(e){}
+  return true;
+})();
+
+/* ---------- player ---------- */
+if (location.search.includes('record')){ document.body.classList.add('record'); ready.then(() => render(0)); }
+else {
+  const au = document.getElementById('au'), pp = document.getElementById('pp'), sc = document.getElementById('scrub'), tm = document.getElementById('tm');
+  let playing = false, t0 = 0, base = 0, useAudio = true;
+  const now = () => playing ? (useAudio && !au.paused ? au.currentTime : base + (performance.now() - t0)/1000) : base;
+  const fmt = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+  pp.onclick = () => {
+    if (playing){ base = now(); playing = false; au.pause(); pp.textContent = 'Play'; }
+    else { if (base >= TL.total) base = 0; playing = true; t0 = performance.now(); au.currentTime = base; au.play().catch(() => { useAudio = false; }); pp.textContent = 'Pause'; }
+  };
+  sc.oninput = () => { base = sc.value/1000*TL.total; t0 = performance.now(); au.currentTime = base; };
+  const loop = () => { let t = now(); if (t >= TL.total){ t = TL.total - .001; if (playing){ playing = false; base = TL.total; pp.textContent = 'Replay'; } } render(t); sc.value = Math.round(t/TL.total*1000); tm.textContent = `${fmt(t)} / ${fmt(TL.total)}`; requestAnimationFrame(loop); };
+  ready.then(() => { render(0); loop(); });
+}
+</script>
+</body>
+</html>

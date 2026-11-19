@@ -1,0 +1,127 @@
+{
+ "questions": [
+  {
+   "scene": "rule",
+   "q": [
+    "为什么不按单词首字母分桶？",
+    "Why not pick the bucket by the word's first letter?"
+   ],
+   "a": [
+    "太不均匀：八本书里 s 开头的不同单词有 2,691 个，z 开头的只有 12 个。有的 reducer 忙死，有的闲着。",
+    "Far too uneven: across the eight books 2,691 distinct words start with s and only 12 with z. Some reducers drown while others sit idle."
+   ],
+   "why": [
+    "统计自 data/runs.sh 里 mrsequential 的真实输出（按首字母小写计数）。",
+    "Counted from mrsequential's real output in data/runs.sh (first letter, lower-cased)."
+   ],
+   "run": "episodes/ep02-map-partition-reduce/data/runs.sh"
+  },
+  {
+   "scene": "column",
+   "q": [
+    "\"of\" 八本书里都有。有几个中间文件装着它？",
+    "\"of\" is in all eight books. How many intermediate files hold it?"
+   ],
+   "a": [
+    "8 个：mr-0-6 到 mr-7-6。ihash 只看词本身，所以每一行都把 \"of\" 放进第 6 列。",
+    "Eight: mr-0-6 through mr-7-6. ihash looks only at the word, so every row puts \"of\" in column 6."
+   ],
+   "why": [
+    "真实运行里 \"of\" 在八个 map 任务中的个数是 485、2,251、2,746、1,461、1,753、541、2,734、1,565，全在 6 号桶。",
+    "In the real run the eight map tasks hold 485, 2,251, 2,746, 1,461, 1,753, 541, 2,734 and 1,565 \"of\" pairs, all in bucket 6."
+   ],
+   "src": [
+    "src/mr/worker.go:16–22"
+   ],
+   "run": "episodes/ep02-map-partition-reduce/data/runs.sh"
+  },
+  {
+   "scene": "evidence",
+   "q": [
+    "每个桶的不同单词数在 2,173 到 2,251 之间，很均匀。那为什么每个桶的词对数从 39,508 到 105,743 不等？",
+    "Distinct words per bucket are even (2,173 to 2,251). Why do pairs per bucket range from 39,508 to 105,743?"
+   ],
+   "a": [
+    "哈希平衡的是键，不是工作量。少数几个词特别多：6 号桶有 \"of\"（13,536 个），2 号桶有 \"the\"（29,748 个）。一个常见的键总落在同一个 reducer 上。",
+    "A hash balances keys, not work. A few words are huge: bucket 6 holds \"of\" (13,536) and bucket 2 holds \"the\" (29,748). One common key always lands on one reducer."
+   ],
+   "why": [
+    "真实运行，nReduce = 10，统计每个 reduce 任务读入的词对数和输出的行数。",
+    "Real run with nReduce = 10, counting the pairs each reduce task reads and the lines it writes."
+   ],
+   "run": "episodes/ep02-map-partition-reduce/data/runs.sh"
+  },
+  {
+   "scene": "wait",
+   "q": [
+    "map 任务 7 还在跑时，6 号 reduce 能开始吗？",
+    "Can reduce task 6 start while map task 7 is still running?"
+   ],
+   "a": [
+    "不能。第 6 列还缺 mr-7-6，\"of\" 会少 1,565 个，输出 of 11971 而不是 of 13536。所有 map 完成后 reduce 才能开始。",
+    "No. Column 6 is still missing mr-7-6, so \"of\" would be 1,565 short and the output would say of 11971 instead of of 13536. Reduce starts only after every map task is done."
+   ],
+   "why": [
+    "mr-7-6（汤姆·索亚）里的 \"of\" 个数来自真实运行；13,536 − 1,565 = 11,971。",
+    "The count of \"of\" in mr-7-6 (Tom Sawyer) is from the real run; 13,536 − 1,565 = 11,971."
+   ],
+   "run": "episodes/ep02-map-partition-reduce/data/runs.sh"
+  },
+  {
+   "scene": "turn",
+   "q": [
+    "手算 ihash(\"the\")：它进几号桶？",
+    "Hash \"the\" by hand: which bucket does it go to?"
+   ],
+   "a": [
+    "2 号桶。FNV-1a 得到 3,020,861,980，最高位是 1；掩码 & 0x7fffffff 清掉它得 873,378,332；对 10 取余得 2。",
+    "Bucket 2. FNV-1a gives 3,020,861,980, whose top bit is set; the mask & 0x7fffffff clears it, giving 873,378,332; mod 10 gives 2."
+   ],
+   "why": [
+    "data.py 逐字节算出同样的值，并和真实运行里 \"the\" 所在的桶（2）核对；mr-out-2 里有 \"the 29748\"。",
+    "data.py computes the same values byte by byte and checks them against the bucket \"the\" landed in during the real run (2); mr-out-2 contains \"the 29748\"."
+   ],
+   "src": [
+    "src/mr/worker.go:18–22"
+   ],
+   "run": "episodes/ep02-map-partition-reduce/data/runs.sh"
+  },
+  {
+   "q": [
+    "如果忘了掩码 & 0x7fffffff，在 64 位的 Go 上 ihash(\"the\") % 10 会变吗？",
+    "If you dropped the mask & 0x7fffffff, would ihash(\"the\") % 10 change on 64-bit Go?"
+   ],
+   "a": [
+    "会。h.Sum32() 是 3,020,861,980，转成 64 位 int 仍是正数，3,020,861,980 % 10 = 0，不是 2。\"the\" 会进 0 号桶。只要所有 worker 都用同一个函数，结果仍然正确，只是桶号不同。",
+    "Yes. h.Sum32() is 3,020,861,980, still positive as a 64-bit int, and 3,020,861,980 % 10 = 0, not 2. \"the\" would go to bucket 0. As long as every worker uses the same function the output is still correct; only the bucket numbers change."
+   ],
+   "why": [
+    "按 worker.go 第 21 行和 FNV-1a 的结果推算；没有修改 worker.go 去实测。",
+    "Worked out from worker.go line 21 and the FNV-1a value; not measured by changing worker.go."
+   ],
+   "src": [
+    "src/mr/worker.go:21"
+   ],
+   "reasoned": true
+  },
+  {
+   "q": [
+    "测试 TestWc 只比较合并排序后的输出。如果你把 nReduce 换成别的数，测试还会过吗？",
+    "TestWc compares only the merged, sorted output. Would it still pass if a different nReduce were used?"
+   ],
+   "a": [
+    "会。只要每个词只进一个桶，合并排序后的内容就和 mrsequential 的一样，跟桶的个数无关。（但 mrcoordinator.go 固定传 10，而且不让改。）",
+    "Yes. As long as each word goes to exactly one bucket, the merged sorted output equals mrsequential's whatever the number of buckets. (mrcoordinator.go always passes 10, though, and must not be changed.)"
+   ],
+   "why": [
+    "mr_test.go 第 18–22 行：mkCorrectOutput、mergeOutput 排序后用 cmp 逐字节比较，不看文件个数。",
+    "mr_test.go lines 18–22: mkCorrectOutput and mergeOutput sort, then cmp compares byte for byte; the number of files isn't checked here."
+   ],
+   "src": [
+    "src/mr/mr_test.go:18–22",
+    "src/main/mrcoordinator.go:23"
+   ],
+   "reasoned": true
+  }
+ ]
+}

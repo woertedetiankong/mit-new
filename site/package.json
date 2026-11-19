@@ -1,0 +1,11 @@
+{
+	"name": "course-site",
+	"private": true,
+	"type": "module",
+	"description": "分布式系统从零读懂：本地课程网站 / the course site on this computer",
+	"license": "MIT",
+	"engines": { "node": ">=22.19.0" },
+	"scripts": {
+		"start": "node server.ts"
+	}
+}

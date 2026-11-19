@@ -1,0 +1,601 @@
+[
+ {
+  "id": "intro",
+  "title": "Why Distributed Is Hard",
+  "zh": "分布式系统难在哪",
+  "lines": [
+   [
+    "Episode 1: why distributed systems are hard.",
+    "第 1 集：分布式系统难在哪。"
+   ],
+   [
+    "A distributed system is one job done by several computers that talk over a network.",
+    "分布式系统，就是几台通过网络通信的计算机一起完成一件事。"
+   ],
+   [
+    "We'll take one small job, counting words in eight books, and try to spread it across machines.",
+    "我们拿一个小任务——数八本书里的词——试着把它分到多台机器上。"
+   ],
+   [
+    "By the end, you'll know your way around src/, and which files are yours to write.",
+    "看完这一集，你能在 src/ 里认路，也知道哪些文件归你写。",
+    "By the end, you'll know your way around the source folder, and which files are yours to write."
+   ]
+  ]
+ },
+ {
+  "id": "idea",
+  "title": "The Whole Idea First",
+  "zh": "先说结论",
+  "lines": [
+   [
+    "Here is the whole episode in two sentences.",
+    "先用两句话说完这一集。"
+   ],
+   [
+    "One machine counts our eight books in a fraction of a second.",
+    "一台机器数完八本书，只要零点几秒。"
+   ],
+   [
+    "Many machines are how the job scales, and they bring four problems one process never has.",
+    "要扩大规模就得用很多台机器，而它们带来四个单进程里从来没有的难题。"
+   ],
+   [
+    "Now the page. A, on top: one process. Read the books, Map, sort, Reduce, one output file.",
+    "下面是这张图。顶上 A：一个进程。读书、Map、排序、Reduce、一个输出文件。",
+    "Many machines are how the job scales, and they bring four problems one process never has."
+   ],
+   [
+    "B, below: the same steps, spread over machines that pass messages.",
+    "下面 B：同样的步骤，分到几台互相发消息的机器上。"
+   ],
+   [
+    "Marker 1: a machine can die halfway.",
+    "标记 1：一台机器可能做到一半就死了。"
+   ],
+   [
+    "Marker 2: two machines can write the same file at once.",
+    "标记 2：两台机器可能同时写同一个文件。"
+   ],
+   [
+    "Marker 3: a message can vanish, and the sender can't tell what happened.",
+    "标记 3：一条消息可能消失，发的人分不清发生了什么。"
+   ],
+   [
+    "Marker 4: copies of the one record that matters must agree.",
+    "标记 4：那份最重要的记录，各个副本必须一致。"
+   ],
+   [
+    "And on the right, the five labs. Each one fights one or more of these markers.",
+    "右边是五个 Lab，每个都在对付其中一个或几个标记。"
+   ]
+  ],
+  "visual": "A small copy of the page sits in a corner of every later scene, the current part lit."
+ },
+ {
+  "id": "one",
+  "title": "One Machine",
+  "zh": "一台机器",
+  "lines": [
+   [
+    "Start with the version that needs no network at all: mrsequential.go.",
+    "先看完全不用网络的版本：mrsequential.go。",
+    "Start with the version that needs no network at all: M R sequential dot go."
+   ],
+   [
+    "The lab hands it to you as the reference answer. It runs everything in one process.",
+    "Lab 把它作为参考答案发给你，所有事都在一个进程里做完。"
+   ],
+   [
+    "The counting logic lives in a plugin, wc.go: a file of Map and Reduce functions loaded at run time.",
+    "计数逻辑在插件 wc.go 里：一个装着 Map 和 Reduce 函数、运行时才加载的文件。",
+    "The counting logic lives in a plugin, W C dot go: a file of Map and Reduce functions loaded at run time.",
+    null,
+    "mrapps/wc.go:19–40"
+   ],
+   [
+    "Map gets one book's text. It splits on anything that isn't a letter.",
+    "Map 拿到一本书的全文，在所有非字母处切开。"
+   ],
+   [
+    "It emits one pair per word: the word, and \"1\".",
+    "每个词吐出一对：这个词，和 \"1\"。",
+    "It emits one pair per word: the word, and the string one."
+   ],
+   [
+    "mrsequential loops over the files and appends every pair to one slice, intermediate.",
+    "mrsequential 逐个文件读，把所有词对追加进同一个切片 intermediate。",
+    "M R sequential loops over the files and appends every pair to one slice, called intermediate.",
+    null,
+    "main/mrsequential.go:38–51"
+   ],
+   [
+    "Then it sorts that slice by key, so equal words sit next to each other.",
+    "然后按键排序，相同的词就挨在一起。",
+    "",
+    null,
+    "main/mrsequential.go:59"
+   ],
+   [
+    "For each run of equal keys it calls Reduce, which in wc.go just counts the values.",
+    "每一段相同的键调用一次 Reduce；wc.go 里的 Reduce 只是数一下有几个值。",
+    "For each run of equal keys it calls Reduce, which in W C dot go just counts the values.",
+    null,
+    "main/mrsequential.go:68–84"
+   ],
+   [
+    "Each result becomes one line of mr-out-0: the word, a space, the count.",
+    "每个结果写成 mr-out-0 的一行：词、空格、次数。",
+    "Each result becomes one line of the output file: the word, a space, the count.",
+    null,
+    "main/mrsequential.go:61,81"
+   ]
+  ],
+  "visual": "Corner: band A."
+ },
+ {
+  "id": "run",
+  "title": "The Real Run",
+  "zh": "真实运行",
+  "lines": [
+   [
+    "Here is the real run on the eight books in src/main.",
+    "这是在 src/main 那八本书上的真实运行。",
+    "Here is the real run on the eight books in the main folder."
+   ],
+   [
+    "3.3 megabytes of text. 623,948 words. 22,107 different ones.",
+    "3.3 MB 文本，623,948 个词，其中 22,107 个不同的词。",
+    "Three point three megabytes of text. Six hundred twenty-three thousand words. Twenty-two thousand different ones.",
+    null,
+    "data.py: data/out sizes.txt, all.txt"
+   ],
+   [
+    "The top word is \"the\", 29,748 times.",
+    "最多的是 \"the\"，29,748 次。",
+    "The top word is the, twenty-nine thousand seven hundred times."
+   ],
+   [
+    "And the whole job takes a fraction of a second on one laptop.",
+    "整个任务在一台笔记本上只要零点几秒。",
+    "",
+    null,
+    "data.py: data/out/time.txt (5 runs)"
+   ],
+   [
+    "So, a fair question: why would anyone use more than one machine?",
+    "那么问题来了：为什么还要用不止一台机器？",
+    "So, a fair question: why would anyone use more than one machine?",
+    "pause"
+   ]
+  ]
+ },
+ {
+  "id": "scale",
+  "title": "Now Make It a Terabyte",
+  "zh": "换成 1 TB",
+  "lines": [
+   [
+    "Because real inputs are not 3.3 megabytes. Google's were terabytes.",
+    "因为真实的输入不是 3.3 MB。Google 的输入是 TB 级。",
+    "Because real inputs are not three megabytes. Google's were terabytes."
+   ],
+   [
+    "Scale our run by hand: one terabyte is about 300,000 times bigger.",
+    "按比例手算一下：1 TB 大约是它的 30 万倍。",
+    "Scale our run by hand: one terabyte is about three hundred thousand times bigger."
+   ],
+   [
+    "At the same speed, that's over ten hours on one machine. Worked out, not measured.",
+    "按同样的速度，一台机器要超过十个小时。这是推算，不是实测。",
+    "",
+    null,
+    "worked out: 1e12 / 3,301,104 B × 0.25 s"
+   ],
+   [
+    "Worse: mrsequential keeps every pair in memory. A terabyte of pairs won't fit.",
+    "更糟的是：mrsequential 把所有词对放在内存里，1 TB 的词对根本装不下。",
+    "Worse: M R sequential keeps every pair in memory. A terabyte of pairs won't fit."
+   ],
+   [
+    "The MapReduce paper reports a grep over one terabyte on about 1,800 machines, in about 150 seconds.",
+    "MapReduce 论文报告：在约 1800 台机器上 grep 1 TB 数据，用时约 150 秒。",
+    "The Map Reduce paper reports a grep over one terabyte on about eighteen hundred machines, in about a hundred and fifty seconds.",
+    null,
+    "Dean & Ghemawat, OSDI 2004, §5.2"
+   ],
+   [
+    "That's the goal: speed from many machines. Now let's see what it costs.",
+    "这就是目标：靠很多台机器换速度。下面看看要付出什么代价。"
+   ]
+  ]
+ },
+ {
+  "id": "nothing",
+  "title": "Two Machines Share Nothing",
+  "zh": "两台机器什么都不共享",
+  "lines": [
+   [
+    "First, the one fact that makes everything else hard.",
+    "先说一个让后面一切都变难的事实。"
+   ],
+   [
+    "Two machines, A and B. Each has its own memory. B cannot read A's slice.",
+    "两台机器 A 和 B，各有各的内存。B 读不到 A 的切片。"
+   ],
+   [
+    "The only link between them is the network. All they can do is send messages.",
+    "它们之间唯一的联系是网络，能做的只有发消息。"
+   ],
+   [
+    "So A asks B for work the way a program calls a function, except the call travels as a message.",
+    "所以 A 让 B 干活，就像程序调用一个函数，只不过这次调用是作为一条消息发出去的。"
+   ],
+   [
+    "That's a remote procedure call, RPC: send the arguments, wait for a reply message.",
+    "这叫远程过程调用，RPC：把参数发过去，等一条回复消息。",
+    "That's a remote procedure call, R P C: send the arguments, wait for a reply message."
+   ],
+   [
+    "In one process, a call always returns. Across a network, the reply might never come.",
+    "在一个进程里，调用总会返回；跨网络时，回复可能永远不来。"
+   ],
+   [
+    "Hold on to that. All four markers grow out of it.",
+    "记住这一点，四个标记都从这里长出来。"
+   ]
+  ],
+  "visual": "Label 玩具例子 / toy. Two boxes, A and B, each with its own memory; a wire between them."
+ },
+ {
+  "id": "split",
+  "title": "Split the Work",
+  "zh": "把活分出去",
+  "lines": [
+   [
+    "The obvious plan: one coordinator hands out books, workers count them.",
+    "最直接的方案：一个协调者分发书，几个 worker 去数。"
+   ],
+   [
+    "The coordinator is the machine that holds the to-do list and hands out tasks.",
+    "协调者就是手里拿着任务清单、负责分活的那台机器。"
+   ],
+   [
+    "A worker is a machine that asks for a task, does it, and reports back, all by RPC.",
+    "worker 是来要任务、做完、再回报的机器，全都通过 RPC。",
+    "A worker is a machine that asks for a task, does it, and reports back, all by R P C."
+   ],
+   [
+    "Eight books, so eight map tasks, spread over a few workers.",
+    "八本书，就是八个 map 任务，分给几个 worker。"
+   ],
+   [
+    "On paper, this is just mrsequential's loop with the iterations on different machines.",
+    "纸面上，这就是把 mrsequential 的循环拆到不同机器上跑。",
+    "On paper, this is just the sequential loop with the iterations on different machines."
+   ],
+   [
+    "In practice, every marker on our page now becomes possible. One at a time.",
+    "实际上，图上的每个标记现在都可能发生。一个一个来。"
+   ]
+  ],
+  "visual": "Corner: band B."
+ },
+ {
+  "id": "fail",
+  "title": "1 · A Worker Dies",
+  "zh": "难题 1 · worker 挂了",
+  "lines": [
+   [
+    "Worker 2 is halfway through Frankenstein, and its machine loses power.",
+    "worker 2 数《弗兰肯斯坦》数到一半，机器断电了。"
+   ],
+   [
+    "In one process, a crash ends everything, so there's nothing half-done to clean up.",
+    "在单进程里，一崩就全没了，不存在“做了一半”的状态。"
+   ],
+   [
+    "Here, the other seven books are fine. Only this task is lost.",
+    "这里，另外七本书没事，只丢了这一个任务。"
+   ],
+   [
+    "Toy: the coordinator watches a clock. Worker 2 has been quiet for a while. Is it dead?",
+    "玩具例子：协调者盯着一个钟，worker 2 已经好一阵没动静了。它死了吗？",
+    "",
+    "pause"
+   ],
+   [
+    "It can't know. A dead worker and a slow worker send exactly the same thing: nothing.",
+    "它没法知道。死掉的 worker 和慢的 worker 发来的东西一模一样：什么都没有。"
+   ],
+   [
+    "The Lab 1 tests make both happen on purpose, with a plugin called crash.go.",
+    "Lab 1 的测试故意让这两种情况都发生，用的是一个叫 crash.go 的插件。",
+    "The Lab 1 tests make both happen on purpose, with a plugin called crash dot go."
+   ],
+   [
+    "It kills a third of its Map and Reduce calls, and stalls another third for up to 10 seconds.",
+    "它让三分之一的 Map / Reduce 调用直接退出，另外三分之一卡住最多 10 秒。",
+    "It kills a third of its Map and Reduce calls, and stalls another third for up to ten seconds.",
+    null,
+    "mrapps/crash.go:21–30"
+   ],
+   [
+    "How the coordinator recovers is episode 3.",
+    "协调者怎么恢复，第 3 集讲。"
+   ]
+  ],
+  "visual": "Corner: marker 1 lit. First a toy clock, then `crash.go`."
+ },
+ {
+  "id": "conc",
+  "title": "2 · Two Writers, One File",
+  "zh": "难题 2 · 两个人写同一个文件",
+  "lines": [
+   [
+    "Say the coordinator gives up on worker 2 and hands Frankenstein to worker 3.",
+    "假设协调者放弃了 worker 2，把《弗兰肯斯坦》交给 worker 3。"
+   ],
+   [
+    "But worker 2 was only slow, not dead. Now both are counting the same book.",
+    "可 worker 2 只是慢，没有死。现在两个人在数同一本书。"
+   ],
+   [
+    "Both write the same output file, at the same time.",
+    "两个人同时写同一个输出文件。"
+   ],
+   [
+    "A reader could see half of one and half of the other: \"Frankenstein\" counted 30 times, or 60, or 17.",
+    "读的人可能看到一半来自这个、一半来自那个：“Frankenstein”可能数成 30、60，或者 17。",
+    "A reader could see half of one and half of the other: Frankenstein counted thirty times, or sixty, or seventeen."
+   ],
+   [
+    "That's concurrency: two things running at once, touching the same data.",
+    "这就是并发：两件事同时进行，碰同一份数据。"
+   ],
+   [
+    "Inside one machine, the same thing happens between threads, and Go's race detector catches it.",
+    "在一台机器内部，线程之间也会这样，Go 的竞争检测器能抓到。"
+   ],
+   [
+    "Atomic rename is episode 3; locks and races are episode 4.",
+    "原子改名在第 3 集讲，锁和竞争在第 4 集讲。"
+   ]
+  ],
+  "visual": "Corner: marker 2 lit."
+ },
+ {
+  "id": "net",
+  "title": "3 · Did It Arrive?",
+  "zh": "难题 3 · 消息到了吗",
+  "lines": [
+   [
+    "Back to our RPC. Every step so far is a message, and messages can be lost.",
+    "回到 RPC。到目前为止每一步都是一条消息，而消息会丢。",
+    "Back to our R P C. Every step so far is a message, and messages can be lost."
+   ],
+   [
+    "The labs simulate the network with labrpc, a fake network inside one process.",
+    "Lab 用 labrpc 模拟网络：一个进程里的“假网络”。",
+    "The labs simulate the network with lab R P C, a fake network inside one process."
+   ],
+   [
+    "Call sends a request and returns true only if a reply came back.",
+    "Call 发出请求，只有收到回复才返回 true。",
+    "",
+    null,
+    "labrpc/labrpc.go:110–113"
+   ],
+   [
+    "In unreliable mode, processReq, which delivers each request, drops it 10% of the time.",
+    "在不可靠模式下，负责投递请求的 processReq 有 10% 的概率丢掉它。",
+    "In unreliable mode, process request, which delivers each request, drops it ten percent of the time.",
+    null,
+    "labrpc/labrpc.go:290,302"
+   ],
+   [
+    "And after the handler has run, it drops the reply another 10% of the time.",
+    "处理函数执行完以后，它还会再以 10% 的概率丢掉回复。",
+    "",
+    null,
+    "labrpc/labrpc.go:349"
+   ],
+   [
+    "Both cases end the same way: Call returns false.",
+    "两种情况的结局一样：Call 返回 false。"
+   ],
+   [
+    "So when you see false, did the server do the work or not?",
+    "所以看到 false 时，服务器到底做了没有？",
+    "So when you see false, did the server do the work or not?",
+    "pause"
+   ],
+   [
+    "You can't tell. That one fact shapes the whole KV lab, episodes 5 and 8.",
+    "你分不出来。这一个事实决定了整个 KV Lab 的设计，第 5 集和第 8 集讲。",
+    "You can't tell. That one fact shapes the whole key-value lab, episodes five and eight."
+   ]
+  ],
+  "visual": "Corner: marker 3 lit. Picture left (the RPC from scene 5, now dropped at two places), code right."
+ },
+ {
+  "id": "sofar",
+  "title": "So Far, on the Page",
+  "zh": "小结（在图上）",
+  "lines": [
+   [
+    "So far, on our page: band A has no markers. Nothing on it can half-fail.",
+    "到目前为止，在这张图上：A 带没有标记，那上面没有什么会“坏一半”。"
+   ],
+   [
+    "Band B has three already: a dead worker, two writers, a lost message.",
+    "B 带已经有三个了：死掉的 worker、两个写的人、丢掉的消息。"
+   ],
+   [
+    "All three come from one fact: machines share nothing and only send messages.",
+    "三个都来自同一个事实：机器之间什么都不共享，只能发消息。"
+   ],
+   [
+    "One marker left, and it's about the coordinator itself.",
+    "还剩一个标记，关于协调者本身。"
+   ]
+  ],
+  "visual": "The full framework page. Band A lit grey (no markers), band B with markers 1–3 lit."
+ },
+ {
+  "id": "agree",
+  "title": "4 · The Coordinator Dies",
+  "zh": "难题 4 · 协调者挂了",
+  "lines": [
+   [
+    "Workers can be replaced. The coordinator can't: it holds the only record of which tasks are done.",
+    "worker 可以换人，协调者不行：只有它记着哪些任务做完了。"
+   ],
+   [
+    "The natural fix: keep a copy of that record on three machines. Each copy is a replica.",
+    "自然的办法是把这份记录在三台机器上各存一份。每一份叫一个副本。"
+   ],
+   [
+    "Toy: three notebooks. One says \"task 6 done\". The other two never heard. Which one is right?",
+    "玩具例子：三本笔记本。一本写着“任务 6 做完了”，另外两本没收到。哪本是对的？",
+    "Toy: three notebooks. One says task six done. The other two never heard. Which one is right?",
+    "pause"
+   ],
+   [
+    "Nobody can say, so the copies must agree on every entry, even while machines crash and messages get lost.",
+    "谁也说不清，所以副本必须对每一条都达成一致，哪怕机器在崩、消息在丢。"
+   ],
+   [
+    "Now cut the network between notebook one and the other two. Both sides keep working.",
+    "现在把第一本和另外两本之间的网络切断。两边都还在工作。"
+   ],
+   [
+    "They must not both think they're in charge, or the record splits in two.",
+    "两边不能都以为自己说了算，否则记录就分裂成两份。"
+   ],
+   [
+    "Getting copies to agree like this is called consensus: Paxos in episodes 13 and 14, Raft from episode 15.",
+    "让副本这样达成一致，叫做共识：Paxos 在第 13、14 集，Raft 从第 15 集开始。"
+   ]
+  ],
+  "visual": "Corner: marker 4 lit. Toy: three notebooks, then a cut between them."
+ },
+ {
+  "id": "labs",
+  "title": "Five Labs on One Board",
+  "zh": "五个 Lab 对上这块板子",
+  "lines": [
+   [
+    "Lab 1, MapReduce, is the job we just split: markers 1 and 2, crashed workers and duplicate writers.",
+    "Lab 1 MapReduce 就是刚才拆开的任务：标记 1 和 2，worker 崩溃、重复写入。"
+   ],
+   [
+    "Lab 2, a key-value server, lives entirely in marker 3: what to do when Call says false.",
+    "Lab 2 键值服务器整个都在标记 3 里：Call 返回 false 时该怎么办。"
+   ],
+   [
+    "Lab 3, Raft, is marker 4: replicas that agree despite crashes and lost messages.",
+    "Lab 3 Raft 是标记 4：机器崩、消息丢，副本照样一致。"
+   ],
+   [
+    "Lab 4 puts the key-value service on top of Raft, so it survives crashes.",
+    "Lab 4 把键值服务放到 Raft 上，让它挺过崩溃。"
+   ],
+   [
+    "Lab 5 shards it across groups, to win back the speed we started for.",
+    "Lab 5 把它分片到多个组，把最初想要的速度赢回来。"
+   ]
+  ],
+  "visual": "The full framework page; column L lights lab by lab, a line from each lab to its markers."
+ },
+ {
+  "id": "src",
+  "title": "Finding Your Way in src/",
+  "zh": "在 src/ 里认路",
+  "lines": [
+   [
+    "Everything lives in src/. Some folders are given to you; you never edit them.",
+    "所有代码都在 src/ 里。有些目录是发给你的，你不用改。",
+    "Everything lives in the source folder. Some folders are given to you; you never edit them."
+   ],
+   [
+    "labrpc is the fake network. tester1 runs your servers, crashes them and checks them.",
+    "labrpc 是假网络。tester1 负责启动、弄崩、检查你的服务器。",
+    "lab R P C is the fake network. tester one runs your servers, crashes them and checks them."
+   ],
+   [
+    "mrapps holds the plugins, like wc.go. main holds the books and the little launchers.",
+    "mrapps 放插件，比如 wc.go；main 放那几本书和启动程序。",
+    "M R apps holds the plugins, like W C dot go. Main holds the books and the little launchers."
+   ],
+   [
+    "Your files are the ones with comments like \"Your code here\". There are ten of them.",
+    "你要写的文件，就是带着 \"Your code here\" 这类注释的那些，一共十个。",
+    "Your files are the ones with comments like, your code here. There are ten of them.",
+    null,
+    "data.py: ten files with \"Your code here\""
+   ],
+   [
+    "For Lab 1, that's mr/coordinator.go and mr/worker.go. Right now MakeCoordinator only starts its RPC server.",
+    "Lab 1 是 mr/coordinator.go 和 mr/worker.go。现在 MakeCoordinator 只启动了 RPC 服务，别的都要你写。",
+    "For Lab 1, that's coordinator dot go and worker dot go in the M R folder. Right now, Make Coordinator only starts its R P C server.",
+    null,
+    "mr/coordinator.go:52–60"
+   ],
+   [
+    "make mr builds the launchers and the plugins, then runs the Lab 1 tests with the race detector on.",
+    "make mr 会编译启动程序和插件，然后打开竞争检测器跑 Lab 1 的测试。",
+    "And make M R builds the launchers and the plugins, then runs the Lab 1 tests with the race detector on.",
+    null,
+    "Makefile:43–57"
+   ]
+  ]
+ },
+ {
+  "id": "recap",
+  "title": "Recap, on the Page",
+  "zh": "本集要点（在图上）",
+  "lines": [
+   [
+    "One: one machine does our eight books in a fraction of a second. We distribute for scale, not for small jobs.",
+    "一：一台机器零点几秒数完八本书。分布式是为了规模，不是为了小任务。",
+    "One: one machine does our eight books in a fraction of a second. We distribute for scale, not for small jobs."
+   ],
+   [
+    "Two: the price is four markers: failure, concurrency, an unreliable network, agreement.",
+    "二：代价是四个标记：故障、并发、不可靠的网络、一致。"
+   ],
+   [
+    "Three: a false from Call can mean \"never ran\" or \"ran, reply lost\". Design for both.",
+    "三：Call 返回 false 可能是“没执行”，也可能是“执行了但回复丢了”。两种都要考虑。",
+    "Three: a false from Call can mean never ran, or ran and the reply was lost. Design for both."
+   ]
+  ],
+  "visual": "The full framework page. Each takeaway lights its part."
+ },
+ {
+  "id": "turn",
+  "title": "Your Turn",
+  "zh": "轮到你",
+  "lines": [
+   [
+    "Build wc.so and run mrsequential on the eight books yourself.",
+    "自己编译 wc.so，在八本书上跑一遍 mrsequential。",
+    "Build the word count plugin and run the sequential version on the eight books yourself."
+   ],
+   [
+    "Before you look: how many times does \"Sherlock\" appear?",
+    "先别看：\"Sherlock\" 出现了几次？",
+    "Before you look: how many times does Sherlock appear?",
+    "pause"
+   ],
+   [
+    "97. Grep mr-out-0 to check. Next episode: the MapReduce model, one bucket at a time.",
+    "97 次。grep 一下 mr-out-0 就能核对。下一集：MapReduce 模型，一个桶一个桶地看。",
+    "Ninety-seven. Grep the output file to check. Next episode: the Map Reduce model, one bucket at a time.",
+    null,
+    "data/out/all.txt: Sherlock 97"
+   ]
+  ]
+ }
+]

@@ -1,0 +1,111 @@
+{
+ "questions": [
+  {
+   "scene": "run",
+   "q": [
+    "mrsequential 在一台笔记本上零点几秒就数完了八本书。那为什么还要用多台机器？",
+    "mrsequential counts all eight books in a fraction of a second on one laptop. Why use more than one machine at all?"
+   ],
+   "a": [
+    "因为真实输入是 TB 级。1 TB 约是 3.3 MB 的 302,929 倍；按这次运行的 0.14 秒算，要约 11.8 小时；而且 mrsequential 把所有词对放在内存里，根本装不下。",
+    "Because real inputs are terabytes. 1 TB is about 302,929 times 3.3 MB; at this run's 0.14 s that is about 11.8 hours, and mrsequential keeps every pair in memory, which would not fit."
+   ],
+   "why": [
+    "0.14 秒是 data/runs.sh 5 次真实运行的中位数（每次都不到三分之一秒）；11.8 小时是按比例推算的，不是实测。内存问题见 mrsequential.go 第 50 行：所有 Map 输出都追加进 intermediate。",
+    "0.14 s is the median of five real runs in data/runs.sh (every one under a third of a second); the 11.8 hours is worked out by scaling, not measured. The memory problem is mrsequential.go line 50: every Map output is appended to intermediate."
+   ],
+   "src": [
+    "src/main/mrsequential.go:49–50"
+   ],
+   "run": "episodes/ep01-why-distributed/data/runs.sh"
+  },
+  {
+   "scene": "net",
+   "q": [
+    "labrpc 的 Call 返回了 false。服务器上的处理函数执行了吗？",
+    "labrpc's Call returned false. Did the handler run on the server?"
+   ],
+   "a": [
+    "分不出来。请求可能在路上被丢了（处理函数没执行），也可能处理函数执行完、回复被丢了。两种情况 Call 都返回 false。",
+    "You can't tell. The request may have been dropped on the way (the handler never ran), or the handler ran and the reply was dropped. Call returns false in both cases."
+   ],
+   "why": [
+    "labrpc.go 第 302–305 行丢请求，第 349–351 行在处理函数返回之后丢回复，两处都发回 replyMsg{false, nil}。",
+    "labrpc.go lines 302–305 drop the request; lines 349–351 drop the reply after the handler has returned. Both send replyMsg{false, nil}."
+   ],
+   "src": [
+    "src/labrpc/labrpc.go:302–305",
+    "src/labrpc/labrpc.go:349–351"
+   ],
+   "reasoned": true
+  },
+  {
+   "scene": "turn",
+   "q": [
+    "\"Sherlock\" 在八本书里一共出现了几次？",
+    "How many times does \"Sherlock\" appear across the eight books?"
+   ],
+   "a": [
+    "97 次。",
+    "97 times."
+   ],
+   "why": [
+    "真实运行的 mr-out-0 里有一行 \"Sherlock 97\"（data/runs.sh）。",
+    "The real run's mr-out-0 has the line \"Sherlock 97\" (data/runs.sh)."
+   ],
+   "run": "episodes/ep01-why-distributed/data/runs.sh"
+  },
+  {
+   "q": [
+    "排序以后，\"Genevese\" 和 \"I\" 排在 \"a\" 前面。为什么大写开头的词排在前面？",
+    "After sorting, \"Genevese\" and \"I\" come before \"a\". Why do capitalised words come first?"
+   ],
+   "a": [
+    "ByKey 的 Less 用 Go 的字符串比较 a[i].Key < a[j].Key，按字节比较。大写字母的字节值（'G' = 0x47）小于小写字母（'a' = 0x61）。",
+    "ByKey's Less compares with Go's string <, byte by byte. Capital letters have smaller byte values ('G' = 0x47) than lower-case ones ('a' = 0x61)."
+   ],
+   "why": [
+    "mrsequential.go 第 22 行定义 Less；data.py 检查了那句话排序后的顺序：Genevese、I、a、am…",
+    "mrsequential.go line 22 defines Less; data.py checks the sentence's sorted order: Genevese, I, a, am …"
+   ],
+   "src": [
+    "src/main/mrsequential.go:22"
+   ],
+   "run": "episodes/ep01-why-distributed/data/runs.sh"
+  },
+  {
+   "q": [
+    "\"Frankenstein\" 一共出现 30 次。如果让两个 worker 各数一遍这本书，再把两份结果加在一起，会得到多少？",
+    "\"Frankenstein\" appears 30 times. If two workers each count that book and both results get added together, what comes out?"
+   ],
+   "a": [
+    "60。30 次全部来自 pg-frankenstein.txt 这一本书，重复数一遍就整本翻倍。这就是第 3 集要防止的“重复写入”。",
+    "60. All 30 come from the one book pg-frankenstein.txt, so counting it twice doubles it. This is the duplicate write episode 3 has to prevent."
+   ],
+   "why": [
+    "data/runs.sh 对每本书单独跑了一次 mrsequential：只有 pg-frankenstein.txt 里有 \"Frankenstein\"，正好 30 次。",
+    "data/runs.sh runs mrsequential on each book separately: only pg-frankenstein.txt contains \"Frankenstein\", exactly 30 times."
+   ],
+   "run": "episodes/ep01-why-distributed/data/runs.sh"
+  },
+  {
+   "q": [
+    "不可靠模式下，labrpc 以 10% 的概率丢请求，再以 10% 的概率丢回复（服务器不崩的情况下）。大约多少比例的 Call 返回 false？其中处理函数其实执行了的占多少？",
+    "In unreliable mode labrpc drops 10% of requests, then 10% of replies (with no server crashes). Roughly what share of Calls return false? Of those, how many had actually run the handler?"
+   ],
+   "a": [
+    "约 19%：10% 丢在请求上，再加剩下 90% 里的 10% = 9% 丢在回复上。返回 false 的调用里，约 9 / 19 ≈ 47% 其实执行过。",
+    "About 19%: 10% lost as requests, plus 10% of the remaining 90% = 9% lost as replies. Of the false results, about 9 / 19 ≈ 47% had actually run."
+   ],
+   "why": [
+    "按 labrpc.go 第 302 行和第 349 行的两个 (rand.Int()%1000) < 100 推算；没有用真实运行验证。",
+    "Worked out from the two (rand.Int()%1000) < 100 checks at labrpc.go lines 302 and 349; not checked against a real run."
+   ],
+   "src": [
+    "src/labrpc/labrpc.go:302",
+    "src/labrpc/labrpc.go:349"
+   ],
+   "reasoned": true
+  }
+ ]
+}

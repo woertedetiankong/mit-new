@@ -1,0 +1,85 @@
+{
+ "duration": 746.55,
+ "chapters": [
+  {
+   "t": 0.0,
+   "title": "分布式系统难在哪",
+   "title_en": "Why Distributed Is Hard"
+  },
+  {
+   "t": 30.77,
+   "title": "先说结论",
+   "title_en": "The Whole Idea First"
+  },
+  {
+   "t": 98.67,
+   "title": "一台机器",
+   "title_en": "One Machine"
+  },
+  {
+   "t": 166.15,
+   "title": "真实运行",
+   "title_en": "The Real Run"
+  },
+  {
+   "t": 198.81,
+   "title": "换成 1 TB",
+   "title_en": "Now Make It a Terabyte"
+  },
+  {
+   "t": 243.0,
+   "title": "两台机器什么都不共享",
+   "title_en": "Two Machines Share Nothing"
+  },
+  {
+   "t": 296.34,
+   "title": "把活分出去",
+   "title_en": "Split the Work"
+  },
+  {
+   "t": 340.66,
+   "title": "难题 1 · worker 挂了",
+   "title_en": "1 · A Worker Dies"
+  },
+  {
+   "t": 402.14,
+   "title": "难题 2 · 两个人写同一个文件",
+   "title_en": "2 · Two Writers, One File"
+  },
+  {
+   "t": 454.18,
+   "title": "难题 3 · 消息到了吗",
+   "title_en": "3 · Did It Arrive?"
+  },
+  {
+   "t": 514.64,
+   "title": "小结（在图上）",
+   "title_en": "So Far, on the Page"
+  },
+  {
+   "t": 543.38,
+   "title": "难题 4 · 协调者挂了",
+   "title_en": "4 · The Coordinator Dies"
+  },
+  {
+   "t": 606.98,
+   "title": "五个 Lab 对上这块板子",
+   "title_en": "Five Labs on One Board"
+  },
+  {
+   "t": 648.36,
+   "title": "在 src/ 里认路",
+   "title_en": "Finding Your Way in src/"
+  },
+  {
+   "t": 697.46,
+   "title": "本集要点（在图上）",
+   "title_en": "Recap, on the Page"
+  },
+  {
+   "t": 724.27,
+   "title": "轮到你",
+   "title_en": "Your Turn"
+  }
+ ]
+}

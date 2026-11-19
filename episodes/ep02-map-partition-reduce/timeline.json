@@ -1,0 +1,772 @@
+{
+ "total": 685.827,
+ "scenes": [
+  {
+   "id": "intro",
+   "title": "The MapReduce Model",
+   "zh": "MapReduce 模型",
+   "start": 0.0,
+   "dur": 28.596,
+   "beats": [
+    {
+     "text": "Episode 2: the MapReduce model.",
+     "zh": "第 2 集：MapReduce 模型。",
+     "start": 0.9,
+     "dur": 3.8,
+     "speech": 3.8
+    },
+    {
+     "text": "Last time, mrsequential put every pair from eight books into one slice in memory.",
+     "zh": "上一集，mrsequential 把八本书的所有词对放进了内存里的同一个切片。",
+     "start": 5.3,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "On many machines there is no \"one slice\": each machine has only its own memory.",
+     "zh": "换成很多台机器，就没有“同一个切片”了：每台机器只有自己的内存。",
+     "start": 12.587,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "Today: how the pairs are cut up so many machines can share the work.",
+     "zh": "今天讲：词对怎么切开，让很多台机器分着做。",
+     "start": 20.309,
+     "dur": 6.687,
+     "speech": 6.687
+    }
+   ]
+  },
+  {
+   "id": "idea",
+   "title": "The Whole Idea First",
+   "zh": "先说结论",
+   "start": 28.596,
+   "dur": 70.092,
+   "beats": [
+    {
+     "text": "Here is the whole episode in two sentences.",
+     "zh": "先用两句话说完这一集。",
+     "start": 0.9,
+     "dur": 4.078,
+     "speech": 4.078
+    },
+    {
+     "text": "Every pair from book X goes into file mr-X-Y, where Y is the word's hash, mod 10.",
+     "zh": "第 X 本书的每个词对，都进文件 mr-X-Y；Y 是这个词的哈希值对 10 取余。",
+     "start": 5.578,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "When every book is done, reducer Y reads column Y: every copy of its words, and nobody else's.",
+     "zh": "等所有书都做完，第 Y 个 reducer 读第 Y 列：它那些词的全部副本，别人的一个也没有。",
+     "start": 14.169,
+     "dur": 8.426,
+     "speech": 8.426
+    },
+    {
+     "text": "Now the page, top to bottom. A: eight books, so eight map tasks, one row each.",
+     "zh": "下面是这张图，从上往下。A：八本书，就是八个 map 任务，一本一行。",
+     "start": 23.195,
+     "dur": 7.557,
+     "speech": 7.557
+    },
+    {
+     "text": "B: Map turns a book into pairs, one per word: the word and \"1\".",
+     "zh": "B：Map 把一本书变成词对，每个词一对：这个词，和 \"1\"。",
+     "start": 31.352,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "C: each pair picks its column with ihash, mod 10, and is appended to mr-X-Y.",
+     "zh": "C：每个词对用 ihash 对 10 取余选出它的列，追加进 mr-X-Y。",
+     "start": 38.639,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "D: a gate. Reduce may start only when all eight map tasks have finished.",
+     "zh": "D：一道闸。所有八个 map 任务都完成，reduce 才能开始。",
+     "start": 46.361,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "E: reducer Y reads its column, sorts it, groups equal words, and writes mr-out-Y.",
+     "zh": "E：第 Y 个 reducer 读它那一列，排序，把相同的词归到一起，写出 mr-out-Y。",
+     "start": 53.648,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "We'll follow one word down this page: \"of\". Its path will light up as we go.",
+     "zh": "我们跟着一个词 \"of\" 从上走到下。它走过的地方会一路亮起来。",
+     "start": 60.935,
+     "dur": 7.557,
+     "speech": 7.557
+    }
+   ]
+  },
+  {
+   "id": "comment",
+   "title": "The Comment That Starts It",
+   "zh": "一句注释",
+   "start": 98.688,
+   "dur": 33.221,
+   "beats": [
+    {
+     "text": "mrsequential admits the difference in a comment, right after the map loop.",
+     "zh": "mrsequential 在 map 循环后面的注释里自己说了区别。",
+     "start": 0.9,
+     "dur": 5.817,
+     "speech": 5.817
+    },
+    {
+     "text": "All the intermediate data sits in one place, rather than being partitioned into N by M buckets.",
+     "zh": "所有中间数据都放在一个地方，而不是分进 N×M 个桶。",
+     "start": 7.317,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "\"Intermediate data\" means the pairs: Map's output, before Reduce has seen them.",
+     "zh": "“中间数据”就是那些词对：Map 的输出，还没交给 Reduce 的东西。",
+     "start": 15.908,
+     "dur": 5.817,
+     "speech": 5.817
+    },
+    {
+     "text": "So the pairs are cut twice: once by which book they came from, once by which bucket they go to.",
+     "zh": "所以词对要切两刀：按来自哪本书切一次，按去哪个桶再切一次。",
+     "start": 22.325,
+     "dur": 9.296,
+     "speech": 9.296
+    }
+   ]
+  },
+  {
+   "id": "grid",
+   "title": "Where M and R Come From",
+   "zh": "M 和 R 从哪来",
+   "start": 131.909,
+   "dur": 43.448,
+   "beats": [
+    {
+     "text": "The first cut is free: one map task per input file. Eight books, so M is 8.",
+     "zh": "第一刀是现成的：每个输入文件一个 map 任务。八本书，M 就是 8。",
+     "start": 0.9,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "A \"task\" is one piece of work a machine can be handed on its own.",
+     "zh": "“任务”就是能单独交给一台机器去做的一份活。",
+     "start": 9.491,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "The second number is nReduce, the number of reduce tasks. Where does it come from?",
+     "zh": "第二个数是 nReduce，也就是 reduce 任务的个数。它从哪来？",
+     "start": 17.213,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "mrcoordinator.go hard-codes it: MakeCoordinator gets 10, every run.",
+     "zh": "mrcoordinator.go 写死了：每次都给 MakeCoordinator 传 10。",
+     "start": 24.935,
+     "dur": 4.078,
+     "speech": 4.078
+    },
+    {
+     "text": "Eight rows times ten columns: eighty intermediate files.",
+     "zh": "八行乘十列：八十个中间文件。",
+     "start": 29.613,
+     "dur": 4.078,
+     "speech": 4.078
+    },
+    {
+     "text": "The lab suggests naming them mr-X-Y: X is the map task, Y is the reduce bucket.",
+     "zh": "Lab 建议把它们命名为 mr-X-Y：X 是 map 任务，Y 是 reduce 桶。",
+     "start": 34.291,
+     "dur": 7.557,
+     "speech": 7.557
+    }
+   ]
+  },
+  {
+   "id": "rule",
+   "title": "A Rule That Picks a Bucket",
+   "zh": "选桶的规则",
+   "start": 175.357,
+   "dur": 87.257,
+   "beats": [
+    {
+     "text": "Each pair must land in exactly one bucket. We need a rule. Let's try one on a toy.",
+     "zh": "每个词对必须进恰好一个桶。我们需要一条规则，先拿玩具例子试试。",
+     "start": 0.9,
+     "dur": 8.426,
+     "speech": 8.426
+    },
+    {
+     "text": "Six words, three buckets: sea, see, sun, sky, sand, cat.",
+     "zh": "六个词，三个桶：sea、see、sun、sky、sand、cat。",
+     "start": 9.926,
+     "dur": 4.948,
+     "speech": 4.948
+    },
+    {
+     "text": "Rule one: by first letter. a–h go to bucket 0, i–r to 1, s–z to 2.",
+     "zh": "规则一：按首字母。a 到 h 进 0 号桶，i 到 r 进 1 号，s 到 z 进 2 号。",
+     "start": 15.474,
+     "dur": 7.557,
+     "speech": 7.557
+    },
+    {
+     "text": "How full is each bucket?",
+     "zh": "每个桶有多满？",
+     "start": 23.631,
+     "dur": 5.8,
+     "speech": 3.8
+    },
+    {
+     "text": "Bucket 2 gets five words, bucket 0 gets one, bucket 1 gets none.",
+     "zh": "2 号桶五个词，0 号桶一个，1 号桶一个都没有。",
+     "start": 30.031,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "Real books do the same. Across all eight, 2,691 distinct words start with s, and only 12 with z.",
+     "zh": "真实的书也一样。八本书里，s 开头的不同单词有 2,691 个，z 开头的只有 12 个。",
+     "start": 36.883,
+     "dur": 8.861,
+     "speech": 8.861
+    },
+    {
+     "text": "Rule two, still a toy: add up the letters' places in the alphabet, a is 1, z is 26.",
+     "zh": "规则二，还是玩具：把字母在字母表里的位置加起来，a 是 1，z 是 26。",
+     "start": 46.344,
+     "dur": 8.861,
+     "speech": 8.861
+    },
+    {
+     "text": "sea is 19 plus 5 plus 1: 25. Mod 3 leaves 1, so bucket 1.",
+     "zh": "sea 是 19 加 5 加 1：25。对 3 取余剩 1，进 1 号桶。",
+     "start": 55.805,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "Do all six and each bucket gets exactly two words.",
+     "zh": "六个词都算完，每个桶正好两个词。",
+     "start": 63.527,
+     "dur": 4.948,
+     "speech": 4.948
+    },
+    {
+     "text": "The key part: sea gives 25 whichever book it came from. Same word, same bucket, every time.",
+     "zh": "关键在这里：不管 sea 来自哪本书，算出来都是 25。同一个词，永远进同一个桶。",
+     "start": 69.075,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "A rule like that is a hash function: it scrambles the input, but never changes its answer.",
+     "zh": "这样的规则就叫哈希函数：把输入打乱，但答案永远不变。",
+     "start": 77.666,
+     "dur": 7.991,
+     "speech": 7.991
+    }
+   ]
+  },
+  {
+   "id": "ihash",
+   "title": "ihash, by Hand",
+   "zh": "手算 ihash",
+   "start": 262.614,
+   "dur": 70.144,
+   "beats": [
+    {
+     "text": "The real rule is ihash, a hash function given to you in worker.go.",
+     "zh": "真正的规则是 ihash，worker.go 里发给你的哈希函数。",
+     "start": 0.9,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "It's FNV-1a: start from a fixed 32-bit number, then take the word one byte at a time.",
+     "zh": "它是 FNV-1a：从一个固定的 32 位数开始，然后逐字节处理这个词。",
+     "start": 7.752,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "For each byte: XOR it in, which flips the bits where the byte has a 1.",
+     "zh": "每个字节：先异或进去，也就是在这个字节为 1 的位上把位翻过来。",
+     "start": 16.343,
+     "dur": 7.557,
+     "speech": 7.557
+    },
+    {
+     "text": "Then multiply by a fixed prime, and keep only the low 32 bits.",
+     "zh": "再乘一个固定的质数，只保留低 32 位。",
+     "start": 24.5,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "\"o\" is 0x6f. XOR, multiply: 0xea0c329e.",
+     "zh": "\"o\" 是 0x6f。异或、相乘：得到 0xea0c329e。",
+     "start": 31.352,
+     "dur": 3.8,
+     "speech": 3.8
+    },
+    {
+     "text": "\"f\" is 0x66. XOR, multiply: 0x69343c68, which is 1,765,031,016.",
+     "zh": "\"f\" 是 0x66。异或、相乘：0x69343c68，也就是 1,765,031,016。",
+     "start": 35.752,
+     "dur": 4.513,
+     "speech": 4.513
+    },
+    {
+     "text": "The mask clears the top bit, so the result is never negative. Here it changes nothing.",
+     "zh": "掩码把最高位清零，结果就不会是负数。这里它没改变任何东西。",
+     "start": 40.865,
+     "dur": 7.557,
+     "speech": 7.557
+    },
+    {
+     "text": "Mod 10 gives 6. \"of\" goes to bucket 6.",
+     "zh": "对 10 取余得 6。\"of\" 进 6 号桶。",
+     "start": 49.022,
+     "dur": 4.513,
+     "speech": 4.513
+    },
+    {
+     "text": "Here is the same thing in worker.go: New32a is FNV-1a, and the comment says to take it mod NReduce.",
+     "zh": "worker.go 里是同一件事：New32a 就是 FNV-1a，注释写着要对 NReduce 取余。",
+     "start": 54.135,
+     "dur": 8.861,
+     "speech": 8.861
+    },
+    {
+     "text": "And the real run agrees: \"of\" lands in bucket 6.",
+     "zh": "真实运行也一样：\"of\" 落在 6 号桶。",
+     "start": 63.596,
+     "dur": 4.948,
+     "speech": 4.948
+    }
+   ]
+  },
+  {
+   "id": "column",
+   "title": "Same Word, Same Column",
+   "zh": "同一个词，同一列",
+   "start": 332.758,
+   "dur": 37.394,
+   "beats": [
+    {
+     "text": "Like the toy, ihash depends only on the word, not on the book or the machine.",
+     "zh": "和玩具例子一样，ihash 只看这个词，不管它来自哪本书、哪台机器。",
+     "start": 0.9,
+     "dur": 7.557,
+     "speech": 7.557
+    },
+    {
+     "text": "\"of\" appears in all eight books. How many intermediate files hold it?",
+     "zh": "\"of\" 八本书里都有。有几个中间文件装着它？",
+     "start": 9.057,
+     "dur": 7.817,
+     "speech": 5.817
+    },
+    {
+     "text": "Eight: mr-0-6 through mr-7-6. One cell in every row, all in column 6.",
+     "zh": "八个：从 mr-0-6 到 mr-7-6。每一行一格，全在第 6 列。",
+     "start": 17.474,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "Frankenstein's cell has 2,746 of them. Sherlock Holmes's has 2,734. Being Earnest's has 485.",
+     "zh": "《弗兰肯斯坦》那格有 2,746 个，《福尔摩斯》那格有 2,734 个，《认真的重要》那格有 485 个。",
+     "start": 24.326,
+     "dur": 6.79,
+     "speech": 6.79
+    },
+    {
+     "text": "And no other column holds a single \"of\".",
+     "zh": "其他列一个 \"of\" 都没有。",
+     "start": 31.716,
+     "dur": 4.078,
+     "speech": 4.078
+    }
+   ]
+  },
+  {
+   "id": "sofar",
+   "title": "So Far, on the Page",
+   "zh": "小结（在图上）",
+   "start": 370.152,
+   "dur": 22.021,
+   "beats": [
+    {
+     "text": "So far, on our page: A, rows are map tasks, one per book.",
+     "zh": "到目前为止，在这张图上：A，行是 map 任务，一本书一行。",
+     "start": 0.9,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "B and C: each pair's word, hashed mod 10, picks its column.",
+     "zh": "B 和 C：每个词对的词，哈希后对 10 取余，选出它的列。",
+     "start": 7.752,
+     "dur": 5.817,
+     "speech": 5.817
+    },
+    {
+     "text": "\"of\" has reached column 6, in eight files. Next comes the gate, D.",
+     "zh": "\"of\" 已经到了第 6 列，分在八个文件里。下一步是闸门 D。",
+     "start": 14.169,
+     "dur": 6.252,
+     "speech": 6.252
+    }
+   ]
+  },
+  {
+   "id": "wait",
+   "title": "The Gate: Reduce Must Wait",
+   "zh": "闸门：Reduce 必须等",
+   "start": 392.173,
+   "dur": 34.352,
+   "beats": [
+    {
+     "text": "Reducer 6 wants to start. Map task 7, Tom Sawyer, is still running. Can it?",
+     "zh": "6 号 reducer 想开始了，map 任务 7《汤姆·索亚》还在跑。它能开始吗？",
+     "start": 0.9,
+     "dur": 9.122,
+     "speech": 7.122
+    },
+    {
+     "text": "No. Column 6 is missing its last file, so its count for \"of\" would be 1,565 short.",
+     "zh": "不能。第 6 列还缺最后一个文件，\"of\" 的次数会少 1,565。",
+     "start": 10.622,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "So reduce starts only after every map task has finished. The lab says the same.",
+     "zh": "所以 reduce 要等所有 map 任务都完成才开始。Lab 也是这么要求的。",
+     "start": 19.213,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "Who checks this gate, and how, is the coordinator's job: episode 3.",
+     "zh": "谁来守这道闸、怎么守，是协调者的事：第 3 集讲。",
+     "start": 26.935,
+     "dur": 5.817,
+     "speech": 5.817
+    }
+   ]
+  },
+  {
+   "id": "group",
+   "title": "Sort, Then Group",
+   "zh": "先排序，再归组",
+   "start": 426.525,
+   "dur": 31.917,
+   "beats": [
+    {
+     "text": "Before the real column, one toy. Five pairs: of, a, of, the, a.",
+     "zh": "读真实的列之前，先看一个玩具例子。五个词对：of、a、of、the、a。",
+     "start": 0.9,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "Sort them by word: a, a, of, of, the. Equal words now sit next to each other.",
+     "zh": "按词排序：a、a、of、of、the。相同的词现在挨在一起了。",
+     "start": 7.752,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "Walk the list and cut it where the word changes: three runs.",
+     "zh": "沿着列表走，词一变就切一刀：三段。",
+     "start": 16.343,
+     "dur": 5.817,
+     "speech": 5.817
+    },
+    {
+     "text": "Each run goes to Reduce once. wc.go's Reduce just counts: a 2, of 2, the 1.",
+     "zh": "每一段交给 Reduce 一次。wc.go 的 Reduce 只是数个数：a 2、of 2、the 1。",
+     "start": 22.76,
+     "dur": 7.557,
+     "speech": 7.557
+    }
+   ]
+  },
+  {
+   "id": "reduce",
+   "title": "Reduce Reads a Column",
+   "zh": "Reduce 读一整列",
+   "start": 458.442,
+   "dur": 44.317,
+   "beats": [
+    {
+     "text": "Now for real. Reducer 6 reads its column: eight files, mr-0-6 through mr-7-6.",
+     "zh": "现在来真的。6 号 reducer 读它那一列：八个文件，mr-0-6 到 mr-7-6。",
+     "start": 0.9,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "That's 105,743 pairs, with every \"of\" somewhere among them.",
+     "zh": "一共 105,743 个词对，所有的 \"of\" 都在里面。",
+     "start": 7.752,
+     "dur": 4.513,
+     "speech": 4.513
+    },
+    {
+     "text": "From here it's exactly the toy, and exactly mrsequential: sort by key.",
+     "zh": "从这里开始就和玩具例子、和 mrsequential 一模一样：按键排序。",
+     "start": 12.865,
+     "dur": 5.817,
+     "speech": 5.817
+    },
+    {
+     "text": "The 13,536 \"of\" pairs now sit together. Walk each run of equal keys and call Reduce.",
+     "zh": "13,536 个 \"of\" 挨在了一起。走过每一段相同的键，调用 Reduce。",
+     "start": 19.282,
+     "dur": 7.557,
+     "speech": 7.557
+    },
+    {
+     "text": "The lab says you may reuse this sorting and output code from mrsequential.",
+     "zh": "Lab 说可以直接复用 mrsequential 里的排序和输出代码。",
+     "start": 27.439,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "Reducer 6 writes mr-out-6. One of its lines: of 13536. \"of\" has reached the bottom of the page.",
+     "zh": "6 号 reducer 写出 mr-out-6，其中一行：of 13536。\"of\" 走到了这张图的最底下。",
+     "start": 34.291,
+     "dur": 8.426,
+     "speech": 8.426
+    }
+   ]
+  },
+  {
+   "id": "evidence",
+   "title": "The Real Run: 80 Files",
+   "zh": "真实运行：80 个文件",
+   "start": 502.759,
+   "dur": 47.766,
+   "beats": [
+    {
+     "text": "Here's a real run of this data path on the eight books, with nReduce set to 10.",
+     "zh": "这是这条数据路径在八本书上的真实运行，nReduce 设为 10。",
+     "start": 0.9,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "It wrote exactly 80 intermediate files, and ten output files.",
+     "zh": "它正好写了 80 个中间文件和 10 个输出文件。",
+     "start": 9.491,
+     "dur": 4.948,
+     "speech": 4.948
+    },
+    {
+     "text": "Distinct words per bucket: between 2,173 and 2,251. ihash spreads the words evenly.",
+     "zh": "每个桶的不同单词数：2,173 到 2,251 之间。ihash 把词分得很均匀。",
+     "start": 15.039,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "But pairs per bucket range from 39,508 to 105,743. Why so uneven?",
+     "zh": "但每个桶的词对数从 39,508 到 105,743。为什么差这么多？",
+     "start": 21.891,
+     "dur": 7.817,
+     "speech": 5.817
+    },
+    {
+     "text": "Because a few words are huge. Bucket 6 holds \"of\", 13,536 pairs. Bucket 2 holds \"the\", 29,748.",
+     "zh": "因为少数几个词特别多。6 号桶有 \"of\"，13,536 个；2 号桶有 \"the\"，29,748 个。",
+     "start": 30.308,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "A hash balances words, not work. One very common word always lands on one reducer.",
+     "zh": "哈希平衡的是词，不是工作量。一个特别常见的词，总是落在同一个 reducer 上。",
+     "start": 38.899,
+     "dur": 7.267,
+     "speech": 7.267
+    }
+   ]
+  },
+  {
+   "id": "test",
+   "title": "How the Test Judges It",
+   "zh": "测试怎么判对错",
+   "start": 550.525,
+   "dur": 44.837,
+   "beats": [
+    {
+     "text": "How does Lab 1 know your buckets are right? Look at TestWc in mr_test.go.",
+     "zh": "Lab 1 怎么知道你分桶分对了？看 mr_test.go 里的 TestWc。",
+     "start": 0.9,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "First, mkCorrectOutput runs mrsequential on the same books and sorts its output.",
+     "zh": "先是 mkCorrectOutput：在同样的书上跑 mrsequential，把输出排序。",
+     "start": 8.187,
+     "dur": 5.817,
+     "speech": 5.817
+    },
+    {
+     "text": "Then mergeOutput sorts all your mr-out files together into one file.",
+     "zh": "然后 mergeOutput 把你所有的 mr-out 文件合在一起排序。",
+     "start": 14.604,
+     "dur": 5.383,
+     "speech": 5.383
+    },
+    {
+     "text": "And runCmp compares the two, byte for byte. Our real run: identical.",
+     "zh": "最后 runCmp 把两个文件逐字节比较。我们的真实运行：完全相同。",
+     "start": 20.587,
+     "dur": 6.076,
+     "speech": 6.076
+    },
+    {
+     "text": "Suppose \"of\" ended up in two buckets. What happens?",
+     "zh": "假如 \"of\" 进了两个桶，会怎样？",
+     "start": 27.263,
+     "dur": 6.513,
+     "speech": 4.513
+    },
+    {
+     "text": "Two lines start with \"of\", each with part of the count. cmp finds the difference, and the test fails.",
+     "zh": "会有两行以 \"of\" 开头，各带一部分次数。cmp 找到不同，测试失败。",
+     "start": 34.376,
+     "dur": 8.861,
+     "speech": 8.861
+    }
+   ]
+  },
+  {
+   "id": "limits",
+   "title": "What This Episode Skipped",
+   "zh": "这一集没讲的",
+   "start": 595.362,
+   "dur": 34.091,
+   "beats": [
+    {
+     "text": "We ran the whole page in one process, with nothing going wrong.",
+     "zh": "我们是在一个进程里跑完整张图的，什么错都没出。",
+     "start": 0.9,
+     "dur": 5.817,
+     "speech": 5.817
+    },
+    {
+     "text": "Who hands each row and column to a worker, and what happens when a worker dies halfway?",
+     "zh": "谁把每一行、每一列派给 worker？worker 做到一半死了怎么办？",
+     "start": 7.317,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "And how do you stop a half-written mr-X-Y from being read? That's episode 3.",
+     "zh": "怎么防止别人读到写了一半的 mr-X-Y？这些是第 3 集。",
+     "start": 15.908,
+     "dur": 6.687,
+     "speech": 6.687
+    },
+    {
+     "text": "How the pairs are written inside each file is your choice. The lab suggests JSON, one pair at a time.",
+     "zh": "每个文件里词对怎么写由你决定。Lab 建议用 JSON，一次写一个。",
+     "start": 23.195,
+     "dur": 9.296,
+     "speech": 9.296
+    }
+   ]
+  },
+  {
+   "id": "recap",
+   "title": "Recap, on the Page",
+   "zh": "本集要点（在图上）",
+   "start": 629.453,
+   "dur": 25.5,
+   "beats": [
+    {
+     "text": "One: M map tasks times R reduce buckets. Eight times ten, eighty files.",
+     "zh": "一：M 个 map 任务乘 R 个 reduce 桶。八乘十，八十个文件。",
+     "start": 0.9,
+     "dur": 6.252,
+     "speech": 6.252
+    },
+    {
+     "text": "Two: ihash mod nReduce picks the column, so every copy of a word meets in one reducer.",
+     "zh": "二：ihash 对 nReduce 取余决定列，同一个词的所有副本会在同一个 reducer 汇合。",
+     "start": 7.752,
+     "dur": 7.991,
+     "speech": 7.991
+    },
+    {
+     "text": "Three: reduce reads a whole column, so it waits at the gate for every map task.",
+     "zh": "三：reduce 读一整列，所以要在闸门前等所有 map 任务完成。",
+     "start": 16.343,
+     "dur": 7.557,
+     "speech": 7.557
+    }
+   ]
+  },
+  {
+   "id": "turn",
+   "title": "Your Turn",
+   "zh": "轮到你",
+   "start": 654.953,
+   "dur": 30.874,
+   "beats": [
+    {
+     "text": "Your turn: hash \"the\" by hand. Three bytes: 0x74, 0x68, 0x65.",
+     "zh": "轮到你：手算 \"the\" 的哈希。三个字节：0x74、0x68、0x65。",
+     "start": 0.9,
+     "dur": 5.383,
+     "speech": 5.383
+    },
+    {
+     "text": "Which bucket does it go to? Careful with the mask this time.",
+     "zh": "它进几号桶？这次小心掩码。",
+     "start": 6.883,
+     "dur": 7.817,
+     "speech": 5.817
+    },
+    {
+     "text": "The hash is 3,020,861,980. The mask clears the top bit: 873,378,332. Mod 10: bucket 2.",
+     "zh": "哈希是 3,020,861,980。掩码清掉最高位：873,378,332。对 10 取余：2 号桶。",
+     "start": 15.3,
+     "dur": 7.122,
+     "speech": 7.122
+    },
+    {
+     "text": "And mr-out-2 says: the 29748. Next episode: the coordinator, crashes, and atomic rename.",
+     "zh": "mr-out-2 里写着：the 29748。下一集：协调者、崩溃和原子改名。",
+     "start": 23.022,
+     "dur": 6.252,
+     "speech": 6.252
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,573 @@
+[
+ {
+  "id": "intro",
+  "title": "The MapReduce Model",
+  "zh": "MapReduce 模型",
+  "visual": "",
+  "lines": [
+   [
+    "Episode 2: the MapReduce model.",
+    "第 2 集：MapReduce 模型。",
+    "Episode 2: the Map Reduce model."
+   ],
+   [
+    "Last time, mrsequential put every pair from eight books into one slice in memory.",
+    "上一集，mrsequential 把八本书的所有词对放进了内存里的同一个切片。",
+    "Last time, M R sequential put every pair from eight books into one slice in memory."
+   ],
+   [
+    "On many machines there is no \"one slice\": each machine has only its own memory.",
+    "换成很多台机器，就没有“同一个切片”了：每台机器只有自己的内存。"
+   ],
+   [
+    "Today: how the pairs are cut up so many machines can share the work.",
+    "今天讲：词对怎么切开，让很多台机器分着做。"
+   ]
+  ]
+ },
+ {
+  "id": "idea",
+  "title": "The Whole Idea First",
+  "zh": "先说结论",
+  "visual": "A small copy of the page sits in a corner of every later scene, the current part lit (the stop strip).",
+  "lines": [
+   [
+    "Here is the whole episode in two sentences.",
+    "先用两句话说完这一集。"
+   ],
+   [
+    "Every pair from book X goes into file mr-X-Y, where Y is the word's hash, mod 10.",
+    "第 X 本书的每个词对，都进文件 mr-X-Y；Y 是这个词的哈希值对 10 取余。",
+    "Every pair from book X goes into file M R X Y, where Y is the word's hash, mod 10."
+   ],
+   [
+    "When every book is done, reducer Y reads column Y: every copy of its words, and nobody else's.",
+    "等所有书都做完，第 Y 个 reducer 读第 Y 列：它那些词的全部副本，别人的一个也没有。"
+   ],
+   [
+    "Now the page, top to bottom. A: eight books, so eight map tasks, one row each.",
+    "下面是这张图，从上往下。A：八本书，就是八个 map 任务，一本一行。"
+   ],
+   [
+    "B: Map turns a book into pairs, one per word: the word and \"1\".",
+    "B：Map 把一本书变成词对，每个词一对：这个词，和 \"1\"。",
+    "B: Map turns a book into pairs, one per word: the word and 1."
+   ],
+   [
+    "C: each pair picks its column with ihash, mod 10, and is appended to mr-X-Y.",
+    "C：每个词对用 ihash 对 10 取余选出它的列，追加进 mr-X-Y。",
+    "C: each pair picks its column with I hash, mod 10, and is appended to M R X Y."
+   ],
+   [
+    "D: a gate. Reduce may start only when all eight map tasks have finished.",
+    "D：一道闸。所有八个 map 任务都完成，reduce 才能开始。"
+   ],
+   [
+    "E: reducer Y reads its column, sorts it, groups equal words, and writes mr-out-Y.",
+    "E：第 Y 个 reducer 读它那一列，排序，把相同的词归到一起，写出 mr-out-Y。",
+    "E: reducer Y reads its column, sorts it, groups equal words, and writes M R out Y."
+   ],
+   [
+    "We'll follow one word down this page: \"of\". Its path will light up as we go.",
+    "我们跟着一个词 \"of\" 从上走到下。它走过的地方会一路亮起来。",
+    "We'll follow one word down this page: of. Its path will light up as we go."
+   ]
+  ]
+ },
+ {
+  "id": "comment",
+  "title": "The Comment That Starts It",
+  "zh": "一句注释",
+  "visual": "Corner: part A.",
+  "lines": [
+   [
+    "mrsequential admits the difference in a comment, right after the map loop.",
+    "mrsequential 在 map 循环后面的注释里自己说了区别。",
+    "The sequential version admits the difference in a comment, right after the map loop."
+   ],
+   [
+    "All the intermediate data sits in one place, rather than being partitioned into N by M buckets.",
+    "所有中间数据都放在一个地方，而不是分进 N×M 个桶。",
+    "All the intermediate data sits in one place, rather than being partitioned into N by M buckets.",
+    "",
+    "src/main/mrsequential.go:53–57"
+   ],
+   [
+    "\"Intermediate data\" means the pairs: Map's output, before Reduce has seen them.",
+    "“中间数据”就是那些词对：Map 的输出，还没交给 Reduce 的东西。"
+   ],
+   [
+    "So the pairs are cut twice: once by which book they came from, once by which bucket they go to.",
+    "所以词对要切两刀：按来自哪本书切一次，按去哪个桶再切一次。"
+   ]
+  ]
+ },
+ {
+  "id": "grid",
+  "title": "Where M and R Come From",
+  "zh": "M 和 R 从哪来",
+  "visual": "Corner: part A. The grid is the page's part A–C drawn large.",
+  "lines": [
+   [
+    "The first cut is free: one map task per input file. Eight books, so M is 8.",
+    "第一刀是现成的：每个输入文件一个 map 任务。八本书，M 就是 8。"
+   ],
+   [
+    "A \"task\" is one piece of work a machine can be handed on its own.",
+    "“任务”就是能单独交给一台机器去做的一份活。",
+    "A task is one piece of work a machine can be handed on its own."
+   ],
+   [
+    "The second number is nReduce, the number of reduce tasks. Where does it come from?",
+    "第二个数是 nReduce，也就是 reduce 任务的个数。它从哪来？",
+    "The second number is n Reduce, the number of reduce tasks. Where does it come from?"
+   ],
+   [
+    "mrcoordinator.go hard-codes it: MakeCoordinator gets 10, every run.",
+    "mrcoordinator.go 写死了：每次都给 MakeCoordinator 传 10。",
+    "The coordinator launcher hard-codes it: Make Coordinator gets ten, every run.",
+    "",
+    "src/main/mrcoordinator.go:23"
+   ],
+   [
+    "Eight rows times ten columns: eighty intermediate files.",
+    "八行乘十列：八十个中间文件。"
+   ],
+   [
+    "The lab suggests naming them mr-X-Y: X is the map task, Y is the reduce bucket.",
+    "Lab 建议把它们命名为 mr-X-Y：X 是 map 任务，Y 是 reduce 桶。",
+    "The lab suggests naming them M R, X, Y: X is the map task, Y is the reduce bucket."
+   ]
+  ]
+ },
+ {
+  "id": "rule",
+  "title": "A Rule That Picks a Bucket",
+  "zh": "选桶的规则",
+  "visual": "Corner: part C. Label 玩具例子 / toy. Six word cards, three buckets.",
+  "lines": [
+   [
+    "Each pair must land in exactly one bucket. We need a rule. Let's try one on a toy.",
+    "每个词对必须进恰好一个桶。我们需要一条规则，先拿玩具例子试试。"
+   ],
+   [
+    "Six words, three buckets: sea, see, sun, sky, sand, cat.",
+    "六个词，三个桶：sea、see、sun、sky、sand、cat。"
+   ],
+   [
+    "Rule one: by first letter. a–h go to bucket 0, i–r to 1, s–z to 2.",
+    "规则一：按首字母。a 到 h 进 0 号桶，i 到 r 进 1 号，s 到 z 进 2 号。",
+    "Rule one: by first letter. A to H go to bucket 0, I to R to 1, S to Z to 2."
+   ],
+   [
+    "How full is each bucket?",
+    "每个桶有多满？",
+    "",
+    "pause"
+   ],
+   [
+    "Bucket 2 gets five words, bucket 0 gets one, bucket 1 gets none.",
+    "2 号桶五个词，0 号桶一个，1 号桶一个都没有。"
+   ],
+   [
+    "Real books do the same. Across all eight, 2,691 distinct words start with s, and only 12 with z.",
+    "真实的书也一样。八本书里，s 开头的不同单词有 2,691 个，z 开头的只有 12 个。",
+    "",
+    "",
+    "data.py: distinct words by first letter (mrsequential output)"
+   ],
+   [
+    "Rule two, still a toy: add up the letters' places in the alphabet, a is 1, z is 26.",
+    "规则二，还是玩具：把字母在字母表里的位置加起来，a 是 1，z 是 26。"
+   ],
+   [
+    "sea is 19 plus 5 plus 1: 25. Mod 3 leaves 1, so bucket 1.",
+    "sea 是 19 加 5 加 1：25。对 3 取余剩 1，进 1 号桶。",
+    "",
+    "",
+    "toy.py"
+   ],
+   [
+    "Do all six and each bucket gets exactly two words.",
+    "六个词都算完，每个桶正好两个词。",
+    "",
+    "",
+    "toy.py"
+   ],
+   [
+    "The key part: sea gives 25 whichever book it came from. Same word, same bucket, every time.",
+    "关键在这里：不管 sea 来自哪本书，算出来都是 25。同一个词，永远进同一个桶。"
+   ],
+   [
+    "A rule like that is a hash function: it scrambles the input, but never changes its answer.",
+    "这样的规则就叫哈希函数：把输入打乱，但答案永远不变。"
+   ]
+  ]
+ },
+ {
+  "id": "ihash",
+  "title": "ihash, by Hand",
+  "zh": "手算 ihash",
+  "visual": "Corner: part C. Picture left (bytes going in), code right.",
+  "lines": [
+   [
+    "The real rule is ihash, a hash function given to you in worker.go.",
+    "真正的规则是 ihash，worker.go 里发给你的哈希函数。",
+    "The real rule is I hash, a hash function given to you in worker dot go."
+   ],
+   [
+    "It's FNV-1a: start from a fixed 32-bit number, then take the word one byte at a time.",
+    "它是 FNV-1a：从一个固定的 32 位数开始，然后逐字节处理这个词。",
+    "It's F N V one A: start from a fixed thirty-two bit number, then take the word one byte at a time."
+   ],
+   [
+    "For each byte: XOR it in, which flips the bits where the byte has a 1.",
+    "每个字节：先异或进去，也就是在这个字节为 1 的位上把位翻过来。"
+   ],
+   [
+    "Then multiply by a fixed prime, and keep only the low 32 bits.",
+    "再乘一个固定的质数，只保留低 32 位。"
+   ],
+   [
+    "\"o\" is 0x6f. XOR, multiply: 0xea0c329e.",
+    "\"o\" 是 0x6f。异或、相乘：得到 0xea0c329e。",
+    "The letter o is hex six F. X O R, multiply: and we get hex E A zero C three two nine E."
+   ],
+   [
+    "\"f\" is 0x66. XOR, multiply: 0x69343c68, which is 1,765,031,016.",
+    "\"f\" 是 0x66。异或、相乘：0x69343c68，也就是 1,765,031,016。",
+    "The letter f is hex six six. X O R, multiply: one billion, seven hundred sixty-five million."
+   ],
+   [
+    "The mask clears the top bit, so the result is never negative. Here it changes nothing.",
+    "掩码把最高位清零，结果就不会是负数。这里它没改变任何东西。"
+   ],
+   [
+    "Mod 10 gives 6. \"of\" goes to bucket 6.",
+    "对 10 取余得 6。\"of\" 进 6 号桶。",
+    "Mod ten gives six. The word of goes to bucket six."
+   ],
+   [
+    "Here is the same thing in worker.go: New32a is FNV-1a, and the comment says to take it mod NReduce.",
+    "worker.go 里是同一件事：New32a 就是 FNV-1a，注释写着要对 NReduce 取余。",
+    "Here is the same thing in worker dot go: New thirty-two A is F N V one A, and the comment says to take it mod n Reduce.",
+    "",
+    "src/mr/worker.go:16–22"
+   ],
+   [
+    "And the real run agrees: \"of\" lands in bucket 6.",
+    "真实运行也一样：\"of\" 落在 6 号桶。",
+    "And the real run agrees: of lands in bucket six."
+   ]
+  ]
+ },
+ {
+  "id": "column",
+  "title": "Same Word, Same Column",
+  "zh": "同一个词，同一列",
+  "visual": "Corner: part C, \"of\"'s column lit.",
+  "lines": [
+   [
+    "Like the toy, ihash depends only on the word, not on the book or the machine.",
+    "和玩具例子一样，ihash 只看这个词，不管它来自哪本书、哪台机器。",
+    "Like the toy, I hash depends only on the word, not on the book or the machine."
+   ],
+   [
+    "\"of\" appears in all eight books. How many intermediate files hold it?",
+    "\"of\" 八本书里都有。有几个中间文件装着它？",
+    "The word of appears in all eight books. How many intermediate files hold it?",
+    "pause"
+   ],
+   [
+    "Eight: mr-0-6 through mr-7-6. One cell in every row, all in column 6.",
+    "八个：从 mr-0-6 到 mr-7-6。每一行一格，全在第 6 列。",
+    "Eight: one cell in every row, all in column six."
+   ],
+   [
+    "Frankenstein's cell has 2,746 of them. Sherlock Holmes's has 2,734. Being Earnest's has 485.",
+    "《弗兰肯斯坦》那格有 2,746 个，《福尔摩斯》那格有 2,734 个，《认真的重要》那格有 485 个。"
+   ],
+   [
+    "And no other column holds a single \"of\".",
+    "其他列一个 \"of\" 都没有。",
+    "And no other column holds a single of."
+   ]
+  ]
+ },
+ {
+  "id": "sofar",
+  "title": "So Far, on the Page",
+  "zh": "小结（在图上）",
+  "visual": "Back to the full framework page. \"of\"'s path lit through A, B, C; D and E still dim.",
+  "lines": [
+   [
+    "So far, on our page: A, rows are map tasks, one per book.",
+    "到目前为止，在这张图上：A，行是 map 任务，一本书一行。"
+   ],
+   [
+    "B and C: each pair's word, hashed mod 10, picks its column.",
+    "B 和 C：每个词对的词，哈希后对 10 取余，选出它的列。"
+   ],
+   [
+    "\"of\" has reached column 6, in eight files. Next comes the gate, D.",
+    "\"of\" 已经到了第 6 列，分在八个文件里。下一步是闸门 D。",
+    "of has reached column 6, in eight files. Next comes the gate, D."
+   ]
+  ]
+ },
+ {
+  "id": "wait",
+  "title": "The Gate: Reduce Must Wait",
+  "zh": "闸门：Reduce 必须等",
+  "visual": "Corner: part D. (Moved here from near the end, so the stops follow run order.)",
+  "lines": [
+   [
+    "Reducer 6 wants to start. Map task 7, Tom Sawyer, is still running. Can it?",
+    "6 号 reducer 想开始了，map 任务 7《汤姆·索亚》还在跑。它能开始吗？",
+    "",
+    "pause"
+   ],
+   [
+    "No. Column 6 is missing its last file, so its count for \"of\" would be 1,565 short.",
+    "不能。第 6 列还缺最后一个文件，\"of\" 的次数会少 1,565。",
+    "No. Column six is missing its last file, so its count for of would be fifteen hundred short.",
+    "",
+    "data.py: track.of[7] (Tom Sawyer)"
+   ],
+   [
+    "So reduce starts only after every map task has finished. The lab says the same.",
+    "所以 reduce 要等所有 map 任务都完成才开始。Lab 也是这么要求的。"
+   ],
+   [
+    "Who checks this gate, and how, is the coordinator's job: episode 3.",
+    "谁来守这道闸、怎么守，是协调者的事：第 3 集讲。"
+   ]
+  ]
+ },
+ {
+  "id": "group",
+  "title": "Sort, Then Group",
+  "zh": "先排序，再归组",
+  "visual": "Corner: part E. Label 玩具例子 / toy. Five pair cards.",
+  "lines": [
+   [
+    "Before the real column, one toy. Five pairs: of, a, of, the, a.",
+    "读真实的列之前，先看一个玩具例子。五个词对：of、a、of、the、a。"
+   ],
+   [
+    "Sort them by word: a, a, of, of, the. Equal words now sit next to each other.",
+    "按词排序：a、a、of、of、the。相同的词现在挨在一起了。",
+    "",
+    "",
+    "toy.py"
+   ],
+   [
+    "Walk the list and cut it where the word changes: three runs.",
+    "沿着列表走，词一变就切一刀：三段。"
+   ],
+   [
+    "Each run goes to Reduce once. wc.go's Reduce just counts: a 2, of 2, the 1.",
+    "每一段交给 Reduce 一次。wc.go 的 Reduce 只是数个数：a 2、of 2、the 1。",
+    "Each run goes to Reduce once. W C dot go's Reduce just counts: a 2, of 2, the 1.",
+    "",
+    "toy.py, src/mrapps/wc.go Reduce"
+   ]
+  ]
+ },
+ {
+  "id": "reduce",
+  "title": "Reduce Reads a Column",
+  "zh": "Reduce 读一整列",
+  "visual": "Corner: part E. Picture left, `mrsequential.go:59–84` right, the same toy steps lit.",
+  "lines": [
+   [
+    "Now for real. Reducer 6 reads its column: eight files, mr-0-6 through mr-7-6.",
+    "现在来真的。6 号 reducer 读它那一列：八个文件，mr-0-6 到 mr-7-6。",
+    "Now for real. Reducer 6 reads its column: eight files, M R 0 6 through M R 7 6."
+   ],
+   [
+    "That's 105,743 pairs, with every \"of\" somewhere among them.",
+    "一共 105,743 个词对，所有的 \"of\" 都在里面。",
+    "That's a hundred and five thousand pairs, with every of somewhere among them."
+   ],
+   [
+    "From here it's exactly the toy, and exactly mrsequential: sort by key.",
+    "从这里开始就和玩具例子、和 mrsequential 一模一样：按键排序。",
+    "From here it's exactly the toy, and exactly M R sequential: sort by key.",
+    "",
+    "src/main/mrsequential.go:59"
+   ],
+   [
+    "The 13,536 \"of\" pairs now sit together. Walk each run of equal keys and call Reduce.",
+    "13,536 个 \"of\" 挨在了一起。走过每一段相同的键，调用 Reduce。",
+    "The 13,536 of pairs now sit together. Walk each run of equal keys and call Reduce.",
+    "",
+    "src/main/mrsequential.go:68–84"
+   ],
+   [
+    "The lab says you may reuse this sorting and output code from mrsequential.",
+    "Lab 说可以直接复用 mrsequential 里的排序和输出代码。",
+    "The lab says you may reuse this sorting and output code from the sequential version."
+   ],
+   [
+    "Reducer 6 writes mr-out-6. One of its lines: of 13536. \"of\" has reached the bottom of the page.",
+    "6 号 reducer 写出 mr-out-6，其中一行：of 13536。\"of\" 走到了这张图的最底下。",
+    "Reducer 6 writes M R out 6. One of its lines: of 13536. of has reached the bottom of the page."
+   ]
+  ]
+ },
+ {
+  "id": "evidence",
+  "title": "The Real Run: 80 Files",
+  "zh": "真实运行：80 个文件",
+  "visual": "",
+  "lines": [
+   [
+    "Here's a real run of this data path on the eight books, with nReduce set to 10.",
+    "这是这条数据路径在八本书上的真实运行，nReduce 设为 10。",
+    "Here's a real run of this data path on the eight books, with n Reduce set to ten."
+   ],
+   [
+    "It wrote exactly 80 intermediate files, and ten output files.",
+    "它正好写了 80 个中间文件和 10 个输出文件。"
+   ],
+   [
+    "Distinct words per bucket: between 2,173 and 2,251. ihash spreads the words evenly.",
+    "每个桶的不同单词数：2,173 到 2,251 之间。ihash 把词分得很均匀。",
+    "Distinct words per bucket: between 2,173 and 2,251. I hash spreads the words evenly."
+   ],
+   [
+    "But pairs per bucket range from 39,508 to 105,743. Why so uneven?",
+    "但每个桶的词对数从 39,508 到 105,743。为什么差这么多？",
+    "But pairs per bucket range from thirty-nine thousand to a hundred and five thousand. Why so uneven?",
+    "pause"
+   ],
+   [
+    "Because a few words are huge. Bucket 6 holds \"of\", 13,536 pairs. Bucket 2 holds \"the\", 29,748.",
+    "因为少数几个词特别多。6 号桶有 \"of\"，13,536 个；2 号桶有 \"the\"，29,748 个。",
+    "Because a few words are huge. Bucket six holds of, thirteen thousand pairs. Bucket two holds the, almost thirty thousand."
+   ],
+   [
+    "A hash balances words, not work. One very common word always lands on one reducer.",
+    "哈希平衡的是词，不是工作量。一个特别常见的词，总是落在同一个 reducer 上。"
+   ]
+  ]
+ },
+ {
+  "id": "test",
+  "title": "How the Test Judges It",
+  "zh": "测试怎么判对错",
+  "visual": "",
+  "lines": [
+   [
+    "How does Lab 1 know your buckets are right? Look at TestWc in mr_test.go.",
+    "Lab 1 怎么知道你分桶分对了？看 mr_test.go 里的 TestWc。",
+    "How does Lab 1 know your buckets are right? Look at Test W C in the M R test file.",
+    "",
+    "src/mr/mr_test.go:9–23"
+   ],
+   [
+    "First, mkCorrectOutput runs mrsequential on the same books and sorts its output.",
+    "先是 mkCorrectOutput：在同样的书上跑 mrsequential，把输出排序。",
+    "First, make correct output runs the sequential version on the same books and sorts its output."
+   ],
+   [
+    "Then mergeOutput sorts all your mr-out files together into one file.",
+    "然后 mergeOutput 把你所有的 mr-out 文件合在一起排序。",
+    "Then merge output sorts all your output files together into one file."
+   ],
+   [
+    "And runCmp compares the two, byte for byte. Our real run: identical.",
+    "最后 runCmp 把两个文件逐字节比较。我们的真实运行：完全相同。",
+    "And run compare compares the two, byte for byte. Our real run: identical."
+   ],
+   [
+    "Suppose \"of\" ended up in two buckets. What happens?",
+    "假如 \"of\" 进了两个桶，会怎样？",
+    "Suppose of ended up in two buckets. What happens?",
+    "pause"
+   ],
+   [
+    "Two lines start with \"of\", each with part of the count. cmp finds the difference, and the test fails.",
+    "会有两行以 \"of\" 开头，各带一部分次数。cmp 找到不同，测试失败。",
+    "Two lines start with of, each with part of the count. C M P finds the difference, and the test fails."
+   ]
+  ]
+ },
+ {
+  "id": "limits",
+  "title": "What This Episode Skipped",
+  "zh": "这一集没讲的",
+  "visual": "",
+  "lines": [
+   [
+    "We ran the whole page in one process, with nothing going wrong.",
+    "我们是在一个进程里跑完整张图的，什么错都没出。"
+   ],
+   [
+    "Who hands each row and column to a worker, and what happens when a worker dies halfway?",
+    "谁把每一行、每一列派给 worker？worker 做到一半死了怎么办？"
+   ],
+   [
+    "And how do you stop a half-written mr-X-Y from being read? That's episode 3.",
+    "怎么防止别人读到写了一半的 mr-X-Y？这些是第 3 集。",
+    "And how do you stop a half-written file from being read? That's episode 3."
+   ],
+   [
+    "How the pairs are written inside each file is your choice. The lab suggests JSON, one pair at a time.",
+    "每个文件里词对怎么写由你决定。Lab 建议用 JSON，一次写一个。",
+    "How the pairs are written inside each file is your choice. The lab suggests Jason, one pair at a time."
+   ]
+  ]
+ },
+ {
+  "id": "recap",
+  "title": "Recap, on the Page",
+  "zh": "本集要点（在图上）",
+  "visual": "The full framework page, \"of\"'s whole path lit. Each takeaway lights its part.",
+  "lines": [
+   [
+    "One: M map tasks times R reduce buckets. Eight times ten, eighty files.",
+    "一：M 个 map 任务乘 R 个 reduce 桶。八乘十，八十个文件。"
+   ],
+   [
+    "Two: ihash mod nReduce picks the column, so every copy of a word meets in one reducer.",
+    "二：ihash 对 nReduce 取余决定列，同一个词的所有副本会在同一个 reducer 汇合。",
+    "Two: I hash mod n Reduce picks the column, so every copy of a word meets in one reducer."
+   ],
+   [
+    "Three: reduce reads a whole column, so it waits at the gate for every map task.",
+    "三：reduce 读一整列，所以要在闸门前等所有 map 任务完成。"
+   ]
+  ]
+ },
+ {
+  "id": "turn",
+  "title": "Your Turn",
+  "zh": "轮到你",
+  "visual": "",
+  "lines": [
+   [
+    "Your turn: hash \"the\" by hand. Three bytes: 0x74, 0x68, 0x65.",
+    "轮到你：手算 \"the\" 的哈希。三个字节：0x74、0x68、0x65。",
+    "Your turn: hash the word the, by hand. Three bytes: hex seven four, six eight, six five."
+   ],
+   [
+    "Which bucket does it go to? Careful with the mask this time.",
+    "它进几号桶？这次小心掩码。",
+    "Which bucket does it go to? Careful with the mask this time.",
+    "pause"
+   ],
+   [
+    "The hash is 3,020,861,980. The mask clears the top bit: 873,378,332. Mod 10: bucket 2.",
+    "哈希是 3,020,861,980。掩码清掉最高位：873,378,332。对 10 取余：2 号桶。",
+    "The hash is about three billion. The mask clears the top bit, leaving about eight hundred seventy-three million. Mod ten: bucket two."
+   ],
+   [
+    "And mr-out-2 says: the 29748. Next episode: the coordinator, crashes, and atomic rename.",
+    "mr-out-2 里写着：the 29748。下一集：协调者、崩溃和原子改名。",
+    "And output file two says: the, twenty-nine thousand seven hundred forty-eight. Next episode: the coordinator, crashes, and atomic rename."
+   ]
+  ]
+ }
+]
