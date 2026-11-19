@@ -129,7 +129,7 @@ function bindSteps(ep, kept){
   if (kept){ renderChapters(v); highlightChapter(v.currentTime); return; }
   const markWatched = () => { if (v.duration && v.currentTime / v.duration > .9 && !done(ep.id, 'video')){ progress[ep.id] = progress[ep.id] || {}; progress[ep.id].video = true; save('course.progress', progress); const st = v.closest('.step'); st.classList.add('done'); st.querySelector('.no').textContent = '✓'; st.querySelector('.status').textContent = L('已看完', 'Watched'); st.querySelector('.status').classList.add('ok'); st.querySelector('[data-done]').checked = true; renderHeadOnly(); } };
   v.addEventListener('timeupdate', () => { markWatched(); highlightChapter(v.currentTime); });
-  v.addEventListener('error', () => { $('#player').innerHTML = `<div class="missing">${L(`没有找到这一集的视频。视频文件比较大，没有放进 git 仓库：请从项目的 Releases 页面下载，保存为 <code>content/${ep.id}/video.mp4</code>，然后刷新页面。`, `This episode's video is missing. Videos are large and not kept in git: download it from the project's Releases page, save it as <code>content/${ep.id}/video.mp4</code>, and reload.`)}</div>`; });
+  v.addEventListener('error', () => { $('#player').innerHTML = `<div class="missing">${L(`没有找到这一集的视频。视频文件比较大，没有放进 git 仓库，要自己生成：按仓库根目录 README 里「做一集」的步骤，在这一集的目录里跑到 <code>node record.mjs</code>，再运行 <code>python3 dev/sync_content.py ${ep.id}</code>，然后刷新页面。`, `This episode's video is missing. Videos are large and not kept in git, so you build it yourself: follow "Making an episode" in the root README up to <code>node record.mjs</code> in this episode's folder, then run <code>python3 dev/sync_content.py ${ep.id}</code>, and reload.`)}</div>`; });
   loadChapters(ep).then(() => renderChapters(v));
   if (hashT() >= 0) seekHash(v);
 }

@@ -3,6 +3,8 @@
 Production repo for the bilingual course "分布式系统从零读懂 / Distributed Systems, Read Closely", a self-study path
 through MIT 6.5840 (Spring 2026). Use the course-studio skill for any episode or site work.
 
+Layout, commands and pitfalls met so far: @README.en.md
+
 ## Rules
 
 - **Video-first (2026-10-19).** Each episode ships as video + 课件 (slides) only: no lab page, flowchart or project atlas.
