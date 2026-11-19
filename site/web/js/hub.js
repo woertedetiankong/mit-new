@@ -62,9 +62,19 @@ function check(ep, k, label = L('已完成', 'Done')){
 const ext = (href, label, note = '↗', main = false) => `<a class="go ${main ? 'main' : ''}" href="${esc(href)}" target="_blank" rel="noopener">${esc(label)} <span class="ext">${esc(note)}</span></a>`;
 const list = xs => xs && xs.length ? `<ul>${xs.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : '';
 
+// Videos are not in git: the message shown where a video should be (README.md, "做一集" / "Making an episode")
+const missingVideo = ep => `<div class="missing">${L(`没有找到这一集的视频。视频文件比较大，没有放进 git 仓库，要自己生成：按仓库根目录 README 里「做一集」的步骤，在这一集的目录里跑到 <code>node record.mjs</code>，再运行 <code>python3 dev/sync_content.py ${ep.id}</code>，然后刷新页面。`, `This episode's video is missing. Videos are large and not kept in git, so you build it yourself: follow "Making an episode" in the root README up to <code>node record.mjs</code> in this episode's folder, then run <code>python3 dev/sync_content.py ${ep.id}</code>, and reload.`)}</div>`;
+
 function stepCard(ep, k, no, auto){
   const isDone = stepDone(ep, k, auto);
   const head = (title, time) => `<div class="step-h"><span class="no">${isDone ? '✓' : no}</span><h3>${title}</h3><span class="time">${esc(time || '')}</span></div>`;
+  if (k === 'video' && ep.noVideo){
+    return `<article class="step wide">
+      ${head(L('看视频', 'Watch the video'), ep.videoTime)}
+      <div class="player" id="player">${missingVideo(ep)}</div>
+      <div class="acts"><span class="status">${L('课件已经在仓库里，可以先看', 'The slides are already in the repo: you can read them first')}</span><a class="go" href="content/${ep.id}/slides.html">${L('课件', 'Slides')}</a></div>
+    </article>`;
+  }
   if (k === 'video'){
     return `<article class="step wide ${isDone ? 'done' : ''}">
       ${head(L('看视频', 'Watch the video'), ep.videoTime)}
@@ -129,7 +139,7 @@ function bindSteps(ep, kept){
   if (kept){ renderChapters(v); highlightChapter(v.currentTime); return; }
   const markWatched = () => { if (v.duration && v.currentTime / v.duration > .9 && !done(ep.id, 'video')){ progress[ep.id] = progress[ep.id] || {}; progress[ep.id].video = true; save('course.progress', progress); const st = v.closest('.step'); st.classList.add('done'); st.querySelector('.no').textContent = '✓'; st.querySelector('.status').textContent = L('已看完', 'Watched'); st.querySelector('.status').classList.add('ok'); st.querySelector('[data-done]').checked = true; renderHeadOnly(); } };
   v.addEventListener('timeupdate', () => { markWatched(); highlightChapter(v.currentTime); });
-  v.addEventListener('error', () => { $('#player').innerHTML = `<div class="missing">${L(`没有找到这一集的视频。视频文件比较大，没有放进 git 仓库，要自己生成：按仓库根目录 README 里「做一集」的步骤，在这一集的目录里跑到 <code>node record.mjs</code>，再运行 <code>python3 dev/sync_content.py ${ep.id}</code>，然后刷新页面。`, `This episode's video is missing. Videos are large and not kept in git, so you build it yourself: follow "Making an episode" in the root README up to <code>node record.mjs</code> in this episode's folder, then run <code>python3 dev/sync_content.py ${ep.id}</code>, and reload.`)}</div>`; });
+  v.addEventListener('error', () => { $('#player').innerHTML = missingVideo(ep); });
   loadChapters(ep).then(() => renderChapters(v));
   if (hashT() >= 0) seekHash(v);
 }
@@ -172,11 +182,13 @@ addEventListener('hashchange', () => {
 });
 addEventListener('focus', () => { if (probed) render(); });
 
-// Videos are not in git: when an episode's video.mp4 isn't there, hide its video step
+// Videos are not in git: when an episode's video.mp4 isn't there but its slides are (a fresh clone),
+// keep the step and show how to build the video; with no slides either, hide the step
 // (an episode left with no steps shows as 制作中 / In the works). Then draw.
 Promise.all(EPISODES.filter(e => open(e) && (e.steps || []).includes('video')).map(async e => {
   let ok = false;
   try { ok = (await fetch(`content/${e.id}/video.mp4`, {method: 'HEAD'})).ok; } catch {}
-  if (!ok){ e.steps = e.steps.filter(k => k !== 'video'); if (!e.steps.length) e.status = 'planned'; }
+  if (!ok && e.slides) e.noVideo = true;
+  else if (!ok){ e.steps = e.steps.filter(k => k !== 'video'); if (!e.steps.length) e.status = 'planned'; }
 })).then(() => { probed = true; current = pick(); render(); });
 })();
